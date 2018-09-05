@@ -5,6 +5,7 @@ import (
 	"bufio"
 	"fmt"
 	"log"
+	"math"
 	"math/rand"
 	"net"
 	"net/rpc"
@@ -16,7 +17,7 @@ import (
 // this packet is to monitor and coordinate the nodes
 
 var defaultSetupParams = ProtocolRPCSetupParams{
-	100 * time.Millisecond,
+	20 * time.Millisecond,
 	2,
 	0.01,
 	0.01,
@@ -61,6 +62,8 @@ func (c *ControllerState) SetupRandomizedView(ph1 int, ph2 *int) error {
 
 func (c *ControllerState) SetupProtocol(ph1 int, ph2 *int) error {
 	c.setupParams.InitView = c.peerList
+	nEstimate := float64(len(c.peerList))
+	c.setupParams.X = int(math.Ceil(math.Log(nEstimate)/math.Log(math.Log(nEstimate))+4.0))*c.setupParams.L + c.setupParams.Offset
 	for i, _ := range c.peerList {
 		client, err := rpc.Dial("tcp", c.peerList[i].Address)
 		if err != nil {
@@ -71,6 +74,20 @@ func (c *ControllerState) SetupProtocol(ph1 int, ph2 *int) error {
 		client.Go("ProtocolState.Setup", c.setupParams, nil, nil)
 	}
 	c.SetupRandomizedView(1, nil)
+	print(c.setupParams.String())
+	return nil
+}
+
+func (c *ControllerState) KillNodes(ph1 int, ph2 *int) error{
+	for i, _ := range c.peerList {
+		client, err := rpc.Dial("tcp", c.peerList[i].Address)
+		if err != nil {
+			log.Fatal("dialing:", err.Error())
+			return nil
+		}
+		defer client.Close()
+		client.Call("ProtocolState.Exit", 1, nil)
+	}
 	return nil
 }
 
@@ -85,6 +102,18 @@ func (c *ControllerState) StartProtocol(ph1 int, ph2 *int) error {
 		client.Go("ProtocolState.Start", 1, nil, nil)
 	}
 	return nil
+}
+
+func (c *ControllerState) checkState(address string) string{
+	state := ProtocolState{}
+	client, err := rpc.Dial("tcp", address)
+	if err != nil {
+		log.Fatal("dialing:", err.Error())
+		return "Error\n"
+	}
+	defer client.Close()
+	client.Call("ProtocolState.RetrieveState", 1, &state)
+	return state.String()
 }
 
 func (c *ControllerState) startListen() {
@@ -111,15 +140,27 @@ func (c *ControllerState) startListen() {
 	fmt.Printf("Controller started at address: %s\n", c.address)
 
 	for{
-		reader := bufio.NewReader(os.Stdin)
-		text, _ := reader.ReadString('\n')
-		switch text {
-		case "setup\n":
-			c.SetupProtocol(1, nil)
-		case "start\n":
-			c.StartProtocol(1, nil)
-		default:
-			fmt.Printf("try setup/start instead of %s \n", text)
+		scanner := bufio.NewScanner(os.Stdin)
+		for scanner.Scan(){
+			text := scanner.Text()
+			switch text {
+			case "setup":
+				c.SetupProtocol(1, nil)
+			case "start":
+				c.StartProtocol(1, nil)
+			case "state":
+				// pick a random node to retrieve state
+				addr := c.peerList[rand.Int() % len(c.peerList)].Address
+				print(c.checkState(addr))
+			case "reset":
+				c.KillNodes(1, nil)
+				c.peerList = make([]message.Identity, 0)
+			case "exit":
+				c.KillNodes(1, nil)
+				exitSignal <- true
+			default:
+				fmt.Printf("try setup/start instead of %s\n", text)
+			}
 		}
 	}
 

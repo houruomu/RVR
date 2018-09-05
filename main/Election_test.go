@@ -64,7 +64,7 @@ func TestDoElection(t *testing.T) {
 	for i, _ := range peers {
 		go func(i int) {
 			for j, _ := range peers{
-				peers[i].addToInitView(peers[j].myId)
+				peers[i].addToInitView(peers[j].MyId)
 			}
 			syncLock <- true
 		}(i)
@@ -85,7 +85,7 @@ func TestDoElection(t *testing.T) {
 	}
 
 	for _, p := range peers{
-		print(p.round)
+		print(p.Round)
 		print("\n")
 	}
 

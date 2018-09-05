@@ -13,7 +13,7 @@ func TestGossip(t *testing.T) {
 	for i, _ := range peers {
 		go func(i int) {
 			peers[i].init()
-			peers[i].view = []uint64{uint64(i)}
+			peers[i].View = []uint64{uint64(i)}
 			syncLock <- true
 		}(i)
 	}
@@ -25,7 +25,7 @@ func TestGossip(t *testing.T) {
 	for i, _ := range peers {
 		go func(i int) {
 			for j, _ := range peers {
-				peers[i].addToInitView(peers[j].myId)
+				peers[i].addToInitView(peers[j].MyId)
 			}
 			syncLock <- true
 		}(i)
@@ -73,7 +73,7 @@ func TestGossip(t *testing.T) {
 
 	print("the finishing rounds are:")
 	for _, p := range peers {
-		print(p.round)
+		print(p.Round)
 		print("\t")
 	}
 	print("\n")

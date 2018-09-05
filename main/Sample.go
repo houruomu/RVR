@@ -12,7 +12,7 @@ import (
 func Sample(p *ProtocolState) map[uint64]float64{
 	<- p.ticker
 	p.lock.Lock()
-	p.round++
+	p.Round++
 	p.lock.Unlock()
 
 
@@ -36,10 +36,10 @@ func Sample(p *ProtocolState) map[uint64]float64{
 		<-p.ticker
 
 		p.lock.Lock()
-		p.round++
-		msg.Round = p.round
+		p.Round++
+		msg.Round = p.Round
 		p.lock.Unlock()
-		msg.Sender = p.myId
+		msg.Sender = p.MyId
 
 		msg.Sign(p.privateKey)
 
@@ -53,13 +53,13 @@ func Sample(p *ProtocolState) map[uint64]float64{
 	for i := 0; i < p.offset; i++ {
 		<-p.ticker
 		p.lock.Lock()
-		p.round++
+		p.Round++
 		p.lock.Unlock()
 	}
 	bufferQueue :=  make([]message.Message, 0)
 	p.lock.Lock()
 	for _, m := range p.inQueue {
-		if m.Round > p.round{
+		if m.Round > p.Round {
 			bufferQueue = append(bufferQueue, m)
 			continue
 		}
@@ -84,10 +84,10 @@ func Sample(p *ProtocolState) map[uint64]float64{
 		<-p.ticker
 
 		p.lock.Lock()
-		p.round++
-		msg.Round = p.round
+		p.Round++
+		msg.Round = p.Round
 		p.lock.Unlock()
-		msg.Sender = p.myId
+		msg.Sender = p.MyId
 
 		msg.Sign(p.privateKey)
 
@@ -100,7 +100,7 @@ func Sample(p *ProtocolState) map[uint64]float64{
 	for i := 0; i < p.offset; i++ {
 		<-p.ticker
 		p.lock.Lock()
-		p.round++
+		p.Round++
 		p.lock.Unlock()
 	}
 
@@ -110,7 +110,7 @@ func Sample(p *ProtocolState) map[uint64]float64{
 	bufferQueue =  make([]message.Message, 0)
 	p.lock.Lock()
 	for _, m := range p.inQueue {
-		if m.Round > p.round{
+		if m.Round > p.Round {
 			bufferQueue = append(bufferQueue, m)
 			continue
 		}
@@ -150,7 +150,7 @@ func Sample(p *ProtocolState) map[uint64]float64{
 
 
 	msg.Nonce = nonce
-	msg.View = p.view
+	msg.View = p.View
 	nilMsg := new(message.Message)
 	nilMsg.Nonce = nonce
 	msg.Type = "Sample View"
@@ -159,12 +159,12 @@ func Sample(p *ProtocolState) map[uint64]float64{
 		<-p.ticker
 
 		p.lock.Lock()
-		p.round++
-		msg.Round = p.round
-		nilMsg.Round = p.round
+		p.Round++
+		msg.Round = p.Round
+		nilMsg.Round = p.Round
 		p.lock.Unlock()
-		msg.Sender = p.myId
-		nilMsg.Sender = p.myId
+		msg.Sender = p.MyId
+		nilMsg.Sender = p.MyId
 
 		msg.Sign(p.privateKey)
 		nilMsg.Sign(p.privateKey)
@@ -181,7 +181,7 @@ func Sample(p *ProtocolState) map[uint64]float64{
 	for i := 0; i < p.offset; i++ {
 		<-p.ticker
 		p.lock.Lock()
-		p.round++
+		p.Round++
 		p.lock.Unlock()
 	}
 
@@ -193,7 +193,7 @@ func Sample(p *ProtocolState) map[uint64]float64{
 	received = make(map[uint64]bool)
 	bufferQueue = make([]message.Message,0)
 	for _, m := range p.inQueue {
-		if m.Round > p.round{
+		if m.Round > p.Round {
 			bufferQueue = append(bufferQueue, m)
 			continue
 		}
@@ -204,7 +204,7 @@ func Sample(p *ProtocolState) map[uint64]float64{
 
 		if !(m.Type == "Sample View"|| m.Type == "Sample Nil Message"){
 			fmt.Printf("Message invalid: Type mismatch, expecting %s, get %s\n", "Sample View", m.Type )
-			fmt.Printf("The message with round %d is received in round %d\n", m.Round, p.round )
+			fmt.Printf("The message with Round %d is received in Round %d\n", m.Round, p.Round)
 			continue
 		}
 
@@ -234,7 +234,7 @@ func Sample(p *ProtocolState) map[uint64]float64{
 	p.lock.Unlock()
 
 	if float64(sampleCount) <= (1-4*p.g)/(1+p.f)*float64(len(p.initView)){
-		fmt.Printf("Sample Failed on round: %d.\n", p.round)
+		fmt.Printf("Sample Failed on Round: %d.\n", p.Round)
 		return nil
 	}else{
 		for i, _ := range score{

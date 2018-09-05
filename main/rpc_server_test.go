@@ -16,7 +16,7 @@ import (
 
 func TestProtocolState_SendInMsg(t *testing.T) {
 	server := new(ProtocolState)
-	server.round = 1
+	server.Round = 1
 	rpc.Register(server)
 	l, e := net.Listen("tcp", ":18374")
 	if e != nil {
@@ -63,7 +63,7 @@ func TestProtocolState_SendInMsg(t *testing.T) {
 		print(len(server.inQueue))
 	}
 
-	server.round = 70
+	server.Round = 70
 	// Sync Call
 	err = client.Call("ProtocolState.SendInMsg", msg, nil)
 	if err == nil {
@@ -108,27 +108,27 @@ func TestProtocolState_test_init_Seq(t *testing.T) {
 	log.Print("initialization sequence completed")
 	maxRound := 20
 	// perround time is 100ms
-	go p1.updateWithPeers([]string{p2.myId.Address, p6.myId.Address}, maxRound)
-	go p2.updateWithPeers([]string{p1.myId.Address, p3.myId.Address}, maxRound)
-	go p3.updateWithPeers([]string{p2.myId.Address, p5.myId.Address, p6.myId.Address}, maxRound)
-	go p4.updateWithPeers([]string{p3.myId.Address, p5.myId.Address, p6.myId.Address, p7.myId.Address}, maxRound)
-	go p5.updateWithPeers([]string{p4.myId.Address, p3.myId.Address}, maxRound)
-	go p6.updateWithPeers([]string{p1.myId.Address, p3.myId.Address, p4.myId.Address}, maxRound)
-	go p7.updateWithPeers([]string{p4.myId.Address, p8.myId.Address}, maxRound)
-	go p8.updateWithPeers([]string{p7.myId.Address, p9.myId.Address}, maxRound)
-	go p9.updateWithPeers([]string{p8.myId.Address, p10.myId.Address}, maxRound)
-	go p10.updateWithPeers([]string{p9.myId.Address}, maxRound)
+	go p1.updateWithPeers([]string{p2.MyId.Address, p6.MyId.Address}, maxRound)
+	go p2.updateWithPeers([]string{p1.MyId.Address, p3.MyId.Address}, maxRound)
+	go p3.updateWithPeers([]string{p2.MyId.Address, p5.MyId.Address, p6.MyId.Address}, maxRound)
+	go p4.updateWithPeers([]string{p3.MyId.Address, p5.MyId.Address, p6.MyId.Address, p7.MyId.Address}, maxRound)
+	go p5.updateWithPeers([]string{p4.MyId.Address, p3.MyId.Address}, maxRound)
+	go p6.updateWithPeers([]string{p1.MyId.Address, p3.MyId.Address, p4.MyId.Address}, maxRound)
+	go p7.updateWithPeers([]string{p4.MyId.Address, p8.MyId.Address}, maxRound)
+	go p8.updateWithPeers([]string{p7.MyId.Address, p9.MyId.Address}, maxRound)
+	go p9.updateWithPeers([]string{p8.MyId.Address, p10.MyId.Address}, maxRound)
+	go p10.updateWithPeers([]string{p9.MyId.Address}, maxRound)
 
 	time.Sleep(3 * time.Second)
 
 	if len(p1.initView) != 10 {
-		t.Error("synchronization failed: not all nodes in the view")
+		t.Error("synchronization failed: not all nodes in the View")
 		print(len(p1.initView))
 	} else {
 		t.Log("sychronization succeeded")
 	}
 
-	if (p1.round != p2.round || p1.round != p3.round || p1.round != p4.round || p1.round != p5.round || p1.round != p6.round || p1.round != p7.round || p1.round != p8.round) {
+	if (p1.Round != p2.Round || p1.Round != p3.Round || p1.Round != p4.Round || p1.Round != p5.Round || p1.Round != p6.Round || p1.Round != p7.Round || p1.Round != p8.Round) {
 		t.Error("nodes went out of sync")
 	} else {
 		t.Log("nodes are in sync after the algo")
@@ -186,7 +186,7 @@ func Test_rpc_load(t *testing.T) {
 func Test_RVR(t *testing.T) {
 	TEST_SIZE := 30
 	viewDist := make(map[uint64]float64)
-	// prepare the view distribution
+	// prepare the View distribution
 	for i := 0 ; i < 10; i++{
 		viewDist[uint64(i)] = float64(i) / 10
 	}
@@ -212,9 +212,9 @@ func Test_RVR(t *testing.T) {
 					view = append(view, uint64(id))
 				}
 			}
-			peers[i].view = view
+			peers[i].View = view
 			for j, _ := range peers{
-				peers[i].addToInitView(peers[j].myId)
+				peers[i].addToInitView(peers[j].MyId)
 			}
 			syncLock <- true
 		}(i)
@@ -225,7 +225,7 @@ func Test_RVR(t *testing.T) {
 	}
 	for i, _ := range peers {
 		fmt.Printf("peer[%d]:", i )
-		for _, id := range peers[i].view{
+		for _, id := range peers[i].View {
 			fmt.Printf("%d\t",id)
 		}
 		print("\n")
@@ -240,14 +240,14 @@ func Test_RVR(t *testing.T) {
 	}
 	print("rounds: ")
 	for _, p := range peers{
-		print(p.round)
+		print(p.Round)
 		print("\t")
 	}
 	print("\n")
 
 	for i, _ := range peers {
 		fmt.Printf("peer[%d]:", i )
-		for _, id := range peers[i].view{
+		for _, id := range peers[i].View {
 			fmt.Printf("%d\t",id)
 		}
 		print("\n")

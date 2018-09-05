@@ -1,19 +1,28 @@
 package message
 
 import (
-	"golang.org/x/crypto/sha3"
-	"strconv"
-	"crypto/x509"
 	"crypto"
-	"crypto/rsa"
 	"crypto/rand"
+	"crypto/rsa"
+	"crypto/x509"
 	"encoding/binary"
 	"fmt"
+	"golang.org/x/crypto/sha3"
+	"reflect"
+	"strconv"
+	"unsafe"
 )
 
 type Identity struct {
 	Address    string
 	Public_key []byte
+}
+
+func (id *Identity) Size() uintptr{
+	var size uintptr
+	size += unsafe.Sizeof(id)
+	size += uintptr(len(id.Public_key)) * reflect.TypeOf(id.Public_key).Elem().Size()
+	return size
 }
 
 func (id *Identity) GetUUID() uint64 {
@@ -86,4 +95,16 @@ func (m *Message) String() string {
 		View Count: %d
 		Verified: %t
 	`, m.Round, m.Sender.GetUUID(), len(m.View), m.Verify() == nil)
+}
+
+func (m *Message) Size() uintptr{
+	// compute the size of a message sent over
+	// this is necessary for protocol measurement
+	var size uintptr
+	size += unsafe.Sizeof(m)
+	size += m.Sender.Size()
+	size += uintptr(len(m.Signature)) * reflect.TypeOf(m.Signature).Elem().Size()
+	size += uintptr(len(m.View)) * reflect.TypeOf(m.View).Elem().Size()
+
+	return size
 }

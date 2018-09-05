@@ -4,6 +4,7 @@ import (
 	"testing"
 	"crypto/rsa"
 	"crypto/rand"
+	"unsafe"
 )
 
 func TestMessage_Sign_Verify(t *testing.T) {
@@ -26,4 +27,11 @@ func TestMessage_Sign_Verify(t *testing.T) {
 	if err == nil{
 		t.Error("Wrong msg verified!")
 	}
+}
+
+func Test_sizeof(t *testing.T){
+	a := []int{1,2,3,4,5,6,7,8,9,10}
+	b := []int{}
+	print(unsafe.Sizeof(a))
+	print(unsafe.Sizeof(b))
 }

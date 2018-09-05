@@ -147,7 +147,7 @@ func (state *ElectionState) DoElection() message.Identity {
 	p := state.parentProtocol
 	<- p.ticker
 	p.lock.Lock()
-	p.round++
+	p.Round++
 	p.lock.Unlock()
 
 	var leader message.Identity
@@ -167,8 +167,8 @@ func (state *ElectionState) DoElection() message.Identity {
 		<-p.ticker
 
 		p.lock.Lock()
-		p.round++
-		msg.Round = p.round
+		p.Round++
+		msg.Round = p.Round
 		p.lock.Unlock()
 
 		msg.Sign(p.privateKey)
@@ -183,12 +183,12 @@ func (state *ElectionState) DoElection() message.Identity {
 	mTree := new(PuzzleMerkleTree)
 
 	mTree.init()
-	mTree.addNonce(p.myId, state.myNonce)
+	mTree.addNonce(p.MyId, state.myNonce)
 
 	for i := 0; i < p.offset; i++ {
 		<-p.ticker
 		p.lock.Lock()
-		p.round++
+		p.Round++
 		p.lock.Unlock()
 
 	}
@@ -227,7 +227,7 @@ func (state *ElectionState) DoElection() message.Identity {
 			default:
 				rand.Read(header)
 				if evalHashWithDifficulty(header, data, solDifficulty) {
-					leader = p.myId
+					leader = p.MyId
 					ifSolved = true
 				}else{
 
@@ -239,7 +239,7 @@ func (state *ElectionState) DoElection() message.Identity {
 	for i := 0; i < 6*(p.offset+p.l); i++ {
 		<-p.ticker
 		p.lock.Lock()
-		p.round++
+		p.Round++
 		p.lock.Unlock()
 	}
 	stopCall <- true
@@ -249,7 +249,7 @@ func (state *ElectionState) DoElection() message.Identity {
 		for i := 0; i < p.l; i++ {
 			<-p.ticker
 			p.lock.Lock()
-			p.round++
+			p.Round++
 			p.lock.Unlock()
 
 			p.lock.RLock()
@@ -262,7 +262,7 @@ func (state *ElectionState) DoElection() message.Identity {
 					continue
 				}
 				msg.Nonce = header
-				msg.Round = p.round
+				msg.Round = p.Round
 				msg.Type = "Election Solution"
 				msg.Sign(p.privateKey)
 				p.sendMsgToPeerAsync(*msg, id.Address)
@@ -274,7 +274,7 @@ func (state *ElectionState) DoElection() message.Identity {
 		for i := 0; i < p.l; i++ {
 			<-p.ticker
 			p.lock.Lock()
-			p.round++
+			p.Round++
 			p.lock.Unlock()
 		}
 	}
@@ -283,7 +283,7 @@ func (state *ElectionState) DoElection() message.Identity {
 	for i := 0; i < p.offset; i++ {
 		<-p.ticker
 		p.lock.Lock()
-		p.round++
+		p.Round++
 		p.lock.Unlock()
 	}
 	// line 11-15: return the leader

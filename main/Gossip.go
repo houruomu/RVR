@@ -9,7 +9,7 @@ func Gossip(p *ProtocolState, leader *message.Identity) []uint64{
 
 	<- p.ticker
 	p.lock.Lock()
-	p.round++
+	p.Round++
 	p.lock.Unlock()
 
 
@@ -18,25 +18,25 @@ func Gossip(p *ProtocolState, leader *message.Identity) []uint64{
 		for i := 0; i < p.x; i++{
 			<- p.ticker
 			p.lock.Lock()
-			p.round++
+			p.Round++
 			p.lock.Unlock()
 		}
 		return proposal
 	}
 	var msg message.Message
-	if bytes.Equal(leader.Public_key, p.myId.Public_key){
-		proposal = p.view
-		msg.Round = p.round
+	if bytes.Equal(leader.Public_key, p.MyId.Public_key){
+		proposal = p.View
+		msg.Round = p.Round
 		msg.View = proposal
-		msg.Sender = p.myId
+		msg.Sender = p.MyId
 		msg.Type = "Gossip Message"
 		msg.Sign(p.privateKey)
 	}else {proposal = nil}
 
 	for i := 0; i < p.x; i++{
-		// notice to facilitate gossip, we only increase the round at the end
+		// notice to facilitate gossip, we only increase the Round at the end
 		<- p.ticker
-		// p.round++ (defered to the end of this function)
+		// p.Round++ (defered to the end of this function)
 		if proposal == nil{
 			// try to receive from initview
 			p.lock.Lock()
@@ -62,9 +62,9 @@ func Gossip(p *ProtocolState, leader *message.Identity) []uint64{
 	}
 
 	for i := 0; i < p.x; i++{
-		// notice to facilitate gossip, we only increase the round at the end
+		// notice to facilitate gossip, we only increase the Round at the end
 		p.lock.Lock()
-		p.round++
+		p.Round++
 		p.lock.Unlock()
 	}
 

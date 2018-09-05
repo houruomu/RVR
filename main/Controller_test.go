@@ -57,7 +57,7 @@ func Test_getLocalAddress(t *testing.T){
 func Test_Controller(t *testing.T) {
 	TEST_SIZE := 6
 	viewDist := make(map[uint64]float64)
-	// prepare the view distribution
+	// prepare the View distribution
 	for i := 0; i < 10; i++ {
 		viewDist[uint64(i)] = float64(i) / 10
 	}
@@ -93,12 +93,12 @@ func Test_Controller(t *testing.T) {
 	// controller start the protocol
 	client.Go("ControllerState.StartProtocol",1, nil, nil)
 
-	// wait until finished
+	// wait until Finished
 	for flag:=true; flag; {
 		flag = false
 		time.Sleep(1 * time.Second)
 		for i, _ := range peers {
-			if !peers[i].finished{
+			if !peers[i].Finished {
 				flag = true
 				break;
 			}

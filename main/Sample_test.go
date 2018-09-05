@@ -9,7 +9,7 @@ import (
 func TestSample(t *testing.T) {
 	TEST_SIZE := 30
 	viewDist := make(map[uint64]float64)
-	// prepare the view distribution
+	// prepare the View distribution
 	for i := 0 ; i < 10; i++{
 		viewDist[uint64(i)] = float64(i) / 10
 	}
@@ -35,9 +35,9 @@ func TestSample(t *testing.T) {
 					view = append(view, uint64(id))
 				}
 			}
-			peers[i].view = view
+			peers[i].View = view
 			for j, _ := range peers{
-				peers[i].addToInitView(peers[j].myId)
+				peers[i].addToInitView(peers[j].MyId)
 			}
 			syncLock <- true
 		}(i)
@@ -58,7 +58,7 @@ func TestSample(t *testing.T) {
 	}
 	print("rounds: ")
 	for _, p := range peers{
-		print(p.round)
+		print(p.Round)
 		print("\t")
 	}
 	print("\n")
