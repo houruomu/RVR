@@ -40,7 +40,7 @@ func (c *ControllerState) Spawn(addr string, count int) {
 	c.ServerList = append(c.ServerList, addr)
 	client, err := rpc.Dial("tcp", addr)
 	if err != nil {
-		log.Fatal("dialing:", err.Error())
+		log.Print("Spawning:", err.Error())
 	}
 	defer client.Close()
 	client.Call("SpawnerState.Spawn", count, nil)
@@ -68,7 +68,7 @@ func (c *ControllerState) SetupRandomizedView(ph1 int, ph2 *int) error {
 		}
 		client, err := rpc.Dial("tcp", c.PeerList[i].Address)
 		if err != nil {
-			log.Fatal("dialing:", err.Error())
+			log.Print("Setting view:", err.Error())
 			return nil
 		}
 		defer client.Close()
@@ -84,7 +84,7 @@ func (c *ControllerState) SetupProtocol(ph1 int, ph2 *int) error {
 	for i, _ := range c.PeerList {
 		client, err := rpc.Dial("tcp", c.PeerList[i].Address)
 		if err != nil {
-			log.Fatal("dialing:", err.Error())
+			log.Print("Setup protocol:", err.Error())
 			return nil
 		}
 		defer client.Close()
@@ -99,7 +99,7 @@ func (c *ControllerState) KillNodes(ph1 int, ph2 *int) error {
 	for i, _ := range c.PeerList {
 		client, err := rpc.Dial("tcp", c.PeerList[i].Address)
 		if err != nil {
-			log.Fatal("dialing peer:", err.Error())
+			log.Print("Killing peer:", err.Error())
 			return nil
 		}
 		defer client.Close()
@@ -112,7 +112,7 @@ func (c *ControllerState) KillServers(ph1 int, ph2 *int) error {
 	for i, _ := range c.ServerList {
 		client, err := rpc.Dial("tcp", c.ServerList[i])
 		if err != nil {
-			log.Fatal("dialing server:", err.Error())
+			log.Print("Killing server:", err.Error())
 			return nil
 		}
 		defer client.Close()
@@ -125,7 +125,7 @@ func (c *ControllerState) StartProtocol(ph1 int, ph2 *int) error {
 	for i, _ := range c.PeerList {
 		client, err := rpc.Dial("tcp", c.PeerList[i].Address)
 		if err != nil {
-			log.Fatal("dialing:", err.Error())
+			log.Print("Starting Protocol:", err.Error())
 			return nil
 		}
 		defer client.Close()
@@ -138,7 +138,7 @@ func (c *ControllerState) checkState(address string) string {
 	state := ProtocolState{}
 	client, err := rpc.Dial("tcp", address)
 	if err != nil {
-		log.Fatal("dialing:", err.Error())
+		log.Print("Check State:", err.Error())
 		return "Error\n"
 	}
 	defer client.Close()

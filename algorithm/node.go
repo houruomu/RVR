@@ -276,7 +276,7 @@ func (p *ProtocolState) sendMsgToPeerAsync(m message.Message, addr string) {
 	go func() {
 		client, err := rpc.Dial("tcp", addr)
 		if err != nil {
-			log.Fatal("dialing:", err.Error())
+			log.Print("dialing:", err.Error())
 			return
 		}
 		defer client.Close()
