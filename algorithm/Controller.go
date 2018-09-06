@@ -99,11 +99,24 @@ func (c *ControllerState) KillNodes(ph1 int, ph2 *int) error {
 	for i, _ := range c.PeerList {
 		client, err := rpc.Dial("tcp", c.PeerList[i].Address)
 		if err != nil {
-			log.Fatal("dialing:", err.Error())
+			log.Fatal("dialing peer:", err.Error())
 			return nil
 		}
 		defer client.Close()
 		client.Call("ProtocolState.Exit", 1, nil)
+	}
+	return nil
+}
+
+func (c *ControllerState) KillServers(ph1 int, ph2 *int) error {
+	for i, _ := range c.ServerList {
+		client, err := rpc.Dial("tcp", c.ServerList[i])
+		if err != nil {
+			log.Fatal("dialing server:", err.Error())
+			return nil
+		}
+		defer client.Close()
+		client.Call("SpawnerState.Exit", 1, nil)
 	}
 	return nil
 }
@@ -177,6 +190,7 @@ func (c *ControllerState) StartListen() {
 				c.Spawn(serverAddr, 1)
 			case "exit":
 				c.KillNodes(1, nil)
+				c.KillServers(1, nil)
 				c.ExitSignal <- true
 			default:
 				fmt.Printf("try setup/start instead of %s\n", text)

@@ -6,6 +6,7 @@ import (
 	"net"
 	"net/rpc"
 	"strings"
+	"time"
 )
 
 type SpawnerState struct{
@@ -19,13 +20,14 @@ func (s *SpawnerState) Spawn(count int, rtv *int) error{
 			_exitSignal := make(chan bool)
 			StartNode(s.ControlAddress, _exitSignal)
 			<- _exitSignal
+			print("node exiting\n")
 		}()
 	}
 	return nil
 }
 
 func (s *SpawnerState) Exit(count int, rtv *int) error{
-	s.ExitSignal <- true
+	go func(term chan bool){time.Sleep(100 * time.Microsecond); term <- true}(s.ExitSignal)
 	return nil
 }
 
