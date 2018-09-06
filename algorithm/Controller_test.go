@@ -1,4 +1,4 @@
-package main
+package algorithm
 
 import (
 	"RVR/message"
@@ -39,8 +39,8 @@ func Test_getLocalAddress(t *testing.T){
 				println("this is IPAddr")
 				ip = v.IP
 			}
-			// process IP address
-			fmt.Printf("The ip address is: %s\n", ip.String())
+			// process IP Address
+			fmt.Printf("The ip Address is: %s\n", ip.String())
 		}
 	}
 
@@ -51,7 +51,7 @@ func Test_getLocalAddress(t *testing.T){
 	defer conn.Close()
 
 	localAddr := conn.LocalAddr().(*net.UDPAddr)
-	fmt.Printf("The outbound address is %s\n", localAddr.IP.String())
+	fmt.Printf("The outbound Address is %s\n", localAddr.IP.String())
 }
 
 func Test_Controller(t *testing.T) {
@@ -64,8 +64,8 @@ func Test_Controller(t *testing.T) {
 
 	// start the controller
 	controller := ControllerState{testSetupParams, make([]message.Identity, 0), ""}
-	controller.startListen()
-	CONTROL_ADDRESS = controller.address
+	controller.StartListen()
+	CONTROL_ADDRESS = controller.Address
 
 	// Dial the controller
 	client, _ := rpc.Dial("tcp", CONTROL_ADDRESS)
@@ -75,7 +75,7 @@ func Test_Controller(t *testing.T) {
 	peers := make([] ProtocolState, TEST_SIZE)
 	for i, _ := range peers {
 		go func(i int) {
-			peers[i].getReady()
+			peers[i].GetReady()
 			syncLock <- true
 		}(i)
 	}
@@ -84,7 +84,7 @@ func Test_Controller(t *testing.T) {
 	}
 	time.Sleep(100 * time.Millisecond) // time needed for all the registration messages to get through
 	// check the controller state
-	fmt.Printf("Controller received %d registrations.\n", len(controller.peerList))
+	fmt.Printf("Controller received %d registrations.\n", len(controller.PeerList))
 
 	// controller setup the protocol
 	client.Go("ControllerState.SetupProtocol",1, nil, nil)

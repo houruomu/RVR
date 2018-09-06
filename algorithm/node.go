@@ -1,4 +1,4 @@
-package main
+package algorithm
 
 import (
 	"RVR/message"
@@ -7,7 +7,6 @@ import (
 	"crypto/rsa"
 	"crypto/x509"
 	"errors"
-	"flag"
 	"fmt"
 	"log"
 	"math"
@@ -20,8 +19,6 @@ import (
 )
 
 // TODO: For each RPC connection, use persistent connection, if there are too many of them, use a pool
-var CONTROL_ADDRESS = "172.24.200.200:9696"
-var exitSignal = make(chan bool)
 type ProtocolState struct {
 	// protocol parameters
 	privateKey    *rsa.PrivateKey
@@ -35,14 +32,18 @@ type ProtocolState struct {
 	initView      []message.Identity
 
 	// protocol state
-	Round       int
-	inQueue     []message.Message
-	View        []uint64
-	lock        sync.RWMutex
-	ticker      <-chan time.Time
-	idToAddrMap map[uint64]string // use to check whether in initview
-	MyId        message.Identity
-	Finished    bool
+	Round          int
+	inQueue        []message.Message
+	View           []uint64
+	lock           sync.RWMutex
+	ticker         <-chan time.Time
+	idToAddrMap    map[uint64]string // use to check whether in initview
+	MyId           message.Identity
+	Finished       bool
+	ExitSignal     chan bool
+	ControlAddress string
+	StartTime      time.Time
+	FinishTime     time.Time
 
 	// protocol measurement data
 	MsgCount       int
@@ -65,18 +66,17 @@ type ProtocolRPCSetupParams struct {
 
 func (p *ProtocolRPCSetupParams) String() string {
 	// print the current state summary
-	return fmt.Sprintf("-----------------------\n" +
-		"Using parameter:\n" +
-		"RoundDuration: %dms\n" +
-		"F: %f\n" +
-		"G: %f\n" +
-		"L: %d\n" +
-		"X: %d\n" +
-		"Delta: %f\n" +
+	return fmt.Sprintf("-----------------------\n"+
+		"Using parameter:\n"+
+		"RoundDuration: %dms\n"+
+		"F: %f\n"+
+		"G: %f\n"+
+		"L: %d\n"+
+		"X: %d\n"+
+		"Delta: %f\n"+
 		"-----------------------\n",
-		p.RoundDuration/time.Millisecond , p.F, p.G, p.L, p.X, p.Delta)
+		p.RoundDuration/time.Millisecond, p.F, p.G, p.L, p.X, p.Delta)
 }
-
 
 func GetOutboundAddr() string {
 	conn, err := net.Dial("udp", "8.8.8.8:80")
@@ -86,26 +86,6 @@ func GetOutboundAddr() string {
 	defer conn.Close()
 	localAddr := conn.LocalAddr().(*net.UDPAddr)
 	return localAddr.IP.String()
-}
-
-func main() {
-	mode := flag.String("mode", "node", "choose a value between node/controller")
-	flag.Parse()
-	switch *mode {
-	case "node":
-		p := ProtocolState{}
-		go p.getReady()
-
-	case "controller":
-		c := ControllerState{defaultSetupParams, make([]message.Identity, 0), ""}
-		go c.startListen()
-
-	default:
-		log.Fatalf("Unsupported mode: %s\n Try:node/controller\n", mode)
-		return
-	}
-	<- exitSignal
-	println("exiting main!")
 }
 
 func (p *ProtocolState) SendInMsg(msg message.Message, rtv *int) error {
@@ -178,7 +158,7 @@ func (p *ProtocolState) init() {
 	log.Printf("RPC Server started, Listening on %s", p.MyId.Address)
 } // this function starts the protocol at once
 
-func (p *ProtocolState) getReady() {
+func (p *ProtocolState) GetReady() {
 	// this function setup the server in a waiting-for-instruct phase
 	// setup private keys
 	var err error
@@ -207,12 +187,12 @@ func (p *ProtocolState) getReady() {
 	myPort := l.Addr().String()[strings.LastIndex(l.Addr().String(), ":"):]
 	p.MyId = message.Identity{myIP + myPort, x509.MarshalPKCS1PublicKey(&p.privateKey.PublicKey)}
 	// report to controller
-	client, err := rpc.Dial("tcp", CONTROL_ADDRESS)
+	client, err := rpc.Dial("tcp", p.ControlAddress)
 	if err != nil {
 		log.Fatal(err.Error())
 	}
 	defer client.Close()
-	fmt.Printf("Node ready to receive instructions, address: %s\n", p.MyId.Address)
+	fmt.Printf("Node ready to receive instructions, Address: %s\n", p.MyId.Address)
 	client.Go("ControllerState.Register", p.MyId, nil, nil)
 }
 
@@ -253,11 +233,12 @@ func (p *ProtocolState) Start(command int, rtv *int) error {
 	p.ticker = time.Tick(p.roundDuration)
 	// invoke View Reconciliation (asynchrously)
 	go p.viewReconciliation()
+	p.StartTime = time.Now()
 	return nil
 }
 
-func (p *ProtocolState) Exit(command int, rtv *int) error{
-	exitSignal <- true
+func (p *ProtocolState) Exit(command int, rtv *int) error {
+	p.ExitSignal <- true
 	return nil
 }
 
@@ -269,19 +250,18 @@ func (p *ProtocolState) RetrieveState(ph int, state *ProtocolState) error {
 
 func (p *ProtocolState) String() string {
 	// print the current state summary
-	return fmt.Sprintf("-----------------------\n" +
-		"State of node %X @ %s:\n" +
-		"Round: %d\n" +
-		"Finished: %t\n" +
-		"message sent: %d\n" +
-		"bytes sent: %d\n" +
-		"largest message size: %d\n" +
-		"message received: %d\n" +
-		"view size: %d\n" +
+	return fmt.Sprintf("-----------------------\n"+
+		"State of node %X @ %s:\n"+
+		"Round: %d\n"+
+		"Finished: %t\n"+
+		"message sent: %d\n"+
+		"bytes sent: %d\n"+
+		"largest message size: %d\n"+
+		"message received: %d\n"+
+		"view size: %d\n"+
 		"-----------------------\n",
 		p.MyId.GetUUID(), p.MyId.Address, p.Round, p.Finished, p.MsgCount, p.ByteCount, p.LargestMsgSize, p.MsgReceived, len(p.View))
 }
-
 
 func (p *ProtocolState) addToInitView(id message.Identity) {
 	if _, ok := p.idToAddrMap[id.GetUUID()]; !ok {
@@ -306,7 +286,7 @@ func (p *ProtocolState) sendMsgToPeerAsync(m message.Message, addr string) {
 		p.MsgCount++
 		size := int(m.Size())
 		p.ByteCount += size
-		if p.LargestMsgSize < size{
+		if p.LargestMsgSize < size {
 			p.LargestMsgSize = size
 		}
 	}()
@@ -385,4 +365,12 @@ func (p *ProtocolState) viewReconciliation() {
 	}
 	fmt.Printf("%s finishing RVR protocol, final View length: %d\n", p.MyId.Address, len(p.View))
 	p.Finished = true
+	p.FinishTime = time.Now()
+}
+
+func StartNode(controlAddress string, exitSignal chan bool) {
+	p := ProtocolState{}
+	p.ControlAddress = controlAddress
+	p.ExitSignal = exitSignal
+	go p.GetReady()
 }
