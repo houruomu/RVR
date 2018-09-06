@@ -1,0 +1,3 @@
+wget https://github.com/houruomu/RVR/raw/master/RVR
+chmod +x RVR
+./RVR --mode=spawner --server="192.168"
