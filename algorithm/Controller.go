@@ -264,8 +264,9 @@ func (c *ControllerState) autoTest(size int, params ProtocolRPCSetupParams){
 	c.PeerList = make([]message.Identity, 0)
 
 	for len(c.PeerList) < size{
+		fmt.Printf("We have %d peers now\n", len(c.PeerList))
 		c.spawnEvenly(size - len(c.PeerList))
-		time.Sleep(5 * time.Second)
+		time.Sleep(10 * time.Second)
 	}
 
 	c.SetupParams = params
