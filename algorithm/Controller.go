@@ -73,6 +73,7 @@ func (c *ControllerState) spawnEvenly(count int){
 }
 
 func (c *ControllerState) Spawn(addr string, count int) {
+	fmt.Printf("Spawning %d instances at %s\n", count, addr)
 	c.ServerList = append(c.ServerList, addr)
 	client, err := rpc.Dial("tcp", addr)
 	if err != nil {
