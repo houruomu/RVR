@@ -62,6 +62,7 @@ func (c *ControllerState) checkConnection(){
 }
 
 func (c *ControllerState) spawnEvenly(count int){
+	fmt.Printf("Spawning Evenly %d instances\n", count)
 	c.checkConnection()
 	for i, _ := range c.ServerList{
 		numInstance := count / len(c.ServerList)
