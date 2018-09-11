@@ -159,7 +159,8 @@ func (c *ControllerState) report() string {
 		client.Call("ProtocolState.RetrieveState", 1, &newState)
 		state = append(state, newState)
 	}
-	return Data{state, c.SetupParams}.Report()
+	analysis := Data{state, c.SetupParams}
+	return analysis.Report()
 }
 
 func (c *ControllerState) StartListen() {
