@@ -200,7 +200,7 @@ func (c *ControllerState) report() string {
 }
 
 func (c *ControllerState) StartListen() {
-	fmt.Printf("version 0.1.2\n")
+	fmt.Printf("version 0.1.3\n")
 
 	c.PeerList = make([]message.Identity, 0)
 	handler := rpc.NewServer() // allows multiple rpc at a time
@@ -229,6 +229,8 @@ func (c *ControllerState) StartListen() {
 		for scanner.Scan() {
 			text := scanner.Text()
 			switch text {
+			case "batch":
+				go c.batchTest()
 			case "auto":
 				go c.autoTest(10, DefaultSetupParams)
 			case "setup":
@@ -284,7 +286,19 @@ func (c *ControllerState) autoTest(size int, params ProtocolRPCSetupParams){
 		print("protocol haven't finished!\n")
 	}
 	print("Auto-test completed!\n")
-	fmt.Printf("%d, %d, %s", size, len(c.PeerList), report)
+	fmt.Printf("%d, %d, %s", size, len(c.ServerList), report)
+}
+
+func (c *ControllerState) batchTest(){
+	sizeList := []int {5, 10, 20, 40, 80, 160, 250}
+	durationList := []int32 {20, 40, 80, 160, 320, 640}
+
+	for _, size := range sizeList{
+		for _, dur := range durationList{
+			c.SetupParams.RoundDuration = time.Duration(dur) * time.Microsecond
+			c.autoTest(size, c.SetupParams)
+		}
+	}
 }
 
 
