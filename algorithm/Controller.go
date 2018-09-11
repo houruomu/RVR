@@ -192,7 +192,11 @@ func (c *ControllerState) report() string {
 		}
 		defer client.Close()
 		newState := ProtocolState{}
-		client.Call("ProtocolState.RetrieveState", 1, &newState)
+		err = client.Call("ProtocolState.RetrieveState", 1, &newState)
+		if err != nil{
+			log.Print("Check State RPC:", err.Error())
+			continue
+		}
 		state = append(state, newState)
 	}
 	analysis := Data{state, c.SetupParams}
@@ -200,7 +204,7 @@ func (c *ControllerState) report() string {
 }
 
 func (c *ControllerState) StartListen() {
-	fmt.Printf("version 0.1.4\n")
+	fmt.Printf("version 0.1.5\n")
 
 	c.PeerList = make([]message.Identity, 0)
 	handler := rpc.NewServer() // allows multiple rpc at a time
@@ -224,6 +228,13 @@ func (c *ControllerState) StartListen() {
 	c.Address = myIP + myPort
 	fmt.Printf("Controller started at Address: %s\n", c.Address)
 
+	// setup watchdog
+	go func(){
+		for{
+			time.Sleep(30 * time.Second)
+			c.checkConnection()
+		}
+	}()
 	for {
 		scanner := bufio.NewScanner(os.Stdin)
 		for scanner.Scan() {

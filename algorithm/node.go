@@ -232,7 +232,15 @@ func (p *ProtocolState) Start(command int, rtv *int) error {
 	// start the ticker
 	p.ticker = time.Tick(p.roundDuration)
 	// invoke View Reconciliation (asynchrously)
-	go p.viewReconciliation()
+	go func() {
+		defer func(){
+			if r := recover(); r != nil {
+				// fail gracefully
+				p.ExitSignal <- true
+			}
+		}()
+		p.viewReconciliation()
+	}()
 	p.StartTime = time.Now()
 	return nil
 }
@@ -334,7 +342,6 @@ func (p *ProtocolState) viewReconciliation() {
 	fmt.Printf("%s starting RVR protocol, initial View length: %d\n", p.MyId.Address, len(p.View))
 	repetity := int(6.0*math.Log(2/p.delta) + 1)
 	// repetity /= 32
-	// TODO: init View
 	for i := 0; i < repetity; i++ {
 		leader := DoElection(p, 1)
 		scores := Sample(p)
