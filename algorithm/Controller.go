@@ -200,7 +200,7 @@ func (c *ControllerState) report() string {
 }
 
 func (c *ControllerState) StartListen() {
-	fmt.Printf("version 0.1.1\n")
+	fmt.Printf("version 0.1.2\n")
 
 	c.PeerList = make([]message.Identity, 0)
 	handler := rpc.NewServer() // allows multiple rpc at a time
