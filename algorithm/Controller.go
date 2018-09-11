@@ -200,7 +200,7 @@ func (c *ControllerState) report() string {
 }
 
 func (c *ControllerState) StartListen() {
-	fmt.Printf("version 0.1.3\n")
+	fmt.Printf("version 0.1.4\n")
 
 	c.PeerList = make([]message.Identity, 0)
 	handler := rpc.NewServer() // allows multiple rpc at a time
@@ -295,7 +295,7 @@ func (c *ControllerState) batchTest(){
 
 	for _, size := range sizeList{
 		for _, dur := range durationList{
-			c.SetupParams.RoundDuration = time.Duration(dur) * time.Microsecond
+			c.SetupParams.RoundDuration = time.Duration(dur) * time.Millisecond
 			c.autoTest(size, c.SetupParams)
 		}
 	}

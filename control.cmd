@@ -8,4 +8,3 @@ plink.exe -ssh houruomu@xcnd56.comp.nus.edu.sg -pw ***REMOVED*** -m command.txt 
 plink.exe -ssh houruomu@xcnd57.comp.nus.edu.sg -pw ***REMOVED*** -m command.txt > output.txt
 plink.exe -ssh houruomu@xcnd58.comp.nus.edu.sg -pw ***REMOVED*** -m command.txt > output.txt
 plink.exe -ssh houruomu@xcnd59.comp.nus.edu.sg -pw ***REMOVED*** -m command.txt > output.txt
-plink.exe -ssh houruomu@xcnd60.comp.nus.edu.sg -pw ***REMOVED*** -m command.txt > output.txt
