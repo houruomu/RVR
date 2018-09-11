@@ -17,7 +17,7 @@ import (
 // this packet is to monitor and coordinate the nodes
 
 var DefaultSetupParams = ProtocolRPCSetupParams{
-	20 * time.Millisecond,
+	100 * time.Millisecond,
 	2,
 	0.01,
 	0.01,
