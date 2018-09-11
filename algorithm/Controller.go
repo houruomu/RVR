@@ -62,11 +62,10 @@ func (c *ControllerState) checkConnection(){
 }
 
 func (c *ControllerState) spawnEvenly(count int){
-	fmt.Printf("Spawning Evenly %d instances\n", count)
 	c.checkConnection()
 	for i, _ := range c.ServerList{
 		numInstance := count / len(c.ServerList)
-		if numInstance < count % len(c.ServerList){
+		if i < count % len(c.ServerList){
 			numInstance++
 		}
 		c.Spawn(c.ServerList[i], numInstance)
@@ -74,7 +73,6 @@ func (c *ControllerState) spawnEvenly(count int){
 }
 
 func (c *ControllerState) Spawn(addr string, count int) {
-	fmt.Printf("Spawning %d instances at %s\n", count, addr)
 	c.ServerList = append(c.ServerList, addr)
 	client, err := rpc.Dial("tcp", addr)
 	if err != nil {
@@ -265,7 +263,6 @@ func (c *ControllerState) autoTest(size int, params ProtocolRPCSetupParams){
 	c.PeerList = make([]message.Identity, 0)
 
 	for len(c.PeerList) < size{
-		fmt.Printf("We have %d peers now\n", len(c.PeerList))
 		c.spawnEvenly(size - len(c.PeerList))
 		time.Sleep(10 * time.Second)
 	}
