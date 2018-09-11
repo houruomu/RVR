@@ -200,6 +200,8 @@ func (c *ControllerState) report() string {
 }
 
 func (c *ControllerState) StartListen() {
+	fmt.Printf("version 0.1.1\n")
+
 	c.PeerList = make([]message.Identity, 0)
 	handler := rpc.NewServer() // allows multiple rpc at a time
 	handler.Register(c)
@@ -228,7 +230,7 @@ func (c *ControllerState) StartListen() {
 			text := scanner.Text()
 			switch text {
 			case "auto":
-				c.autoTest(10, DefaultSetupParams)
+				go c.autoTest(10, DefaultSetupParams)
 			case "setup":
 				c.SetupProtocol(1, nil)
 			case "start":
@@ -261,7 +263,6 @@ func (c *ControllerState) StartListen() {
 func (c *ControllerState) autoTest(size int, params ProtocolRPCSetupParams){
 	c.KillNodes(1, nil)
 	c.PeerList = make([]message.Identity, 0)
-	fmt.Printf("auto version 0.1.0\n")
 	for len(c.PeerList) < size{
 		c.spawnEvenly(size - len(c.PeerList))
 		time.Sleep(10 * time.Second)
