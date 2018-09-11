@@ -1,4 +1,4 @@
 wget -O RVR https://github.com/houruomu/RVR/raw/master/RVR
 chmod +x RVR
-screen -d -m ./RVR --mode=spawner --server="192.168.48.219:9696"
+screen -d -m ./RVR --mode=spawner --server="192.168.51.8:9696"
 exit
