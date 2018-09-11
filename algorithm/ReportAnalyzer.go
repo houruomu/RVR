@@ -1,6 +1,7 @@
 package algorithm
 
 import (
+	"fmt"
 	"math"
 	"sort"
 	"time"
@@ -8,6 +9,7 @@ import (
 
 type Data struct{
 	states []ProtocolState
+	setupParam ProtocolRPCSetupParams
 }
 
 func (data *Data) checkConsensus() bool{
@@ -79,4 +81,24 @@ func (data *Data) byteCount(percentile float64) int {
 	}
 	sort.Sort(sort.IntSlice(counts))
 	return counts[int(math.Floor(percentile * (float64(len(counts)) - 0.51)))]
+}
+
+func (d *Data) Report() string{
+	report := fmt.Sprintf("%t, %t, %d, %d, %f, %f, %d, %d, %f, %d, %d, %d, %d, %d, %d\n",
+		d.checkFinished(),
+		d.checkConsensus(),
+		d.setupParam.RoundDuration,
+		d.setupParam.Offset,
+		d.setupParam.F,
+		d.setupParam.G,
+		d.setupParam.L,
+		d.setupParam.X,
+		d.setupParam.Delta,
+		d.time(0.5),
+		d.time(0.9),
+		d.msgCount(0.5),
+		d.msgCount(0.9),
+		d.byteCount(0.5),
+		d.byteCount(0.9))
+	return report
 }

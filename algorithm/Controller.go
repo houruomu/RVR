@@ -146,6 +146,22 @@ func (c *ControllerState) checkState(address string) string {
 	return state.String()
 }
 
+func (c *ControllerState) report() string {
+	state := make([]ProtocolState, 0)
+	for i,_ := range c.PeerList{
+		client, err := rpc.Dial("tcp", c.PeerList[i].Address)
+		if err != nil {
+			log.Print("Check State:", err.Error())
+			continue
+		}
+		defer client.Close()
+		newState := ProtocolState{}
+		client.Call("ProtocolState.RetrieveState", 1, &newState)
+		state = append(state, newState)
+	}
+	return Data{state, c.SetupParams}.Report()
+}
+
 func (c *ControllerState) StartListen() {
 	c.PeerList = make([]message.Identity, 0)
 	handler := rpc.NewServer() // allows multiple rpc at a time
@@ -182,6 +198,9 @@ func (c *ControllerState) StartListen() {
 				// pick a random node to retrieve state
 				nodeAddr := c.PeerList[rand.Int()%len(c.PeerList)].Address
 				print(c.checkState(nodeAddr))
+			case "report":
+				// pick a random node to retrieve state
+				print(c.report())
 			case "reset":
 				c.KillNodes(1, nil)
 				c.PeerList = make([]message.Identity, 0)
