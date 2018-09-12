@@ -73,7 +73,6 @@ func (c *ControllerState) spawnEvenly(count int){
 }
 
 func (c *ControllerState) Spawn(addr string, count int) {
-	c.ServerList = append(c.ServerList, addr)
 	client, err := rpc.Dial("tcp", addr)
 	if err != nil {
 		log.Print("Spawning:", err.Error())
@@ -117,6 +116,8 @@ func (c *ControllerState) SetupProtocol(ph1 int, ph2 *int) error {
 	c.SetupParams.InitView = c.PeerList
 	nEstimate := float64(len(c.PeerList))
 	c.SetupParams.X = int(math.Ceil(math.Log(nEstimate)/math.Log(math.Log(nEstimate))+4.0))*c.SetupParams.L + c.SetupParams.Offset
+
+	connectedPeers := make([]message.Identity, 0)
 	for i, _ := range c.PeerList {
 		client, err := rpc.Dial("tcp", c.PeerList[i].Address)
 		if err != nil {
@@ -124,22 +125,35 @@ func (c *ControllerState) SetupProtocol(ph1 int, ph2 *int) error {
 			return nil
 		}
 		defer client.Close()
-		client.Go("ProtocolState.Setup", c.SetupParams, nil, nil)
+		err = client.Call("ProtocolState.Setup", c.SetupParams, nil)
+		for j := 0; j < 5 && err != nil; j++{
+			time.Sleep(100 * time.Millisecond)
+			err = client.Call("ProtocolState.Setup", c.SetupParams, nil)
+		}
+		if err != nil{
+			client.Call("ProtocolState.Exit", 1, nil)
+		}else{
+			connectedPeers = append(connectedPeers, c.PeerList[i])
+		}
 	}
+	c.PeerList = connectedPeers
 	c.setupRandomizedView()
 	print(c.SetupParams.String())
 	return nil
 }
 
+func (c *ControllerState) killNode(addr string){
+	client, err := rpc.Dial("tcp", addr)
+	if err != nil {
+		log.Print("Killing peer:", err.Error())
+	}
+	defer client.Close()
+	client.Call("ProtocolState.Exit", 1, nil)
+}
+
 func (c *ControllerState) KillNodes(ph1 int, ph2 *int) error {
 	for i, _ := range c.PeerList {
-		client, err := rpc.Dial("tcp", c.PeerList[i].Address)
-		if err != nil {
-			log.Print("Killing peer:", err.Error())
-			return nil
-		}
-		defer client.Close()
-		client.Call("ProtocolState.Exit", 1, nil)
+		c.killNode(c.PeerList[i].Address)
 	}
 	return nil
 }
@@ -158,6 +172,7 @@ func (c *ControllerState) KillServers(ph1 int, ph2 *int) error {
 }
 
 func (c *ControllerState) StartProtocol(ph1 int, ph2 *int) error {
+	callList := make([]*rpc.Call, len(c.PeerList))
 	for i, _ := range c.PeerList {
 		client, err := rpc.Dial("tcp", c.PeerList[i].Address)
 		if err != nil {
@@ -165,8 +180,20 @@ func (c *ControllerState) StartProtocol(ph1 int, ph2 *int) error {
 			return nil
 		}
 		defer client.Close()
-		client.Go("ProtocolState.Start", 1, nil, nil)
+		callList[i] = client.Go("ProtocolState.Start", 1, nil, nil)
 	}
+	time.Sleep(time.Duration(c.SetupParams.Offset + 1) * c.SetupParams.RoundDuration)
+
+	startedPeers := make([]message.Identity, 0)
+	for i, call := range callList{
+		select{
+		case <- call.Done:
+			startedPeers = append(startedPeers, c.PeerList[i])
+		default:
+			c.killNode(c.PeerList[i].Address)
+		}
+	}
+	c.PeerList = startedPeers
 	return nil
 }
 
@@ -204,8 +231,6 @@ func (c *ControllerState) report() string {
 }
 
 func (c *ControllerState) StartListen() {
-	fmt.Printf("version 0.1.5\n")
-
 	c.PeerList = make([]message.Identity, 0)
 	handler := rpc.NewServer() // allows multiple rpc at a time
 	handler.Register(c)
@@ -287,14 +312,14 @@ func (c *ControllerState) autoTest(size int, params ProtocolRPCSetupParams){
 
 	print("Auto-test starting!\n")
 	var report string
+	startTime := time.Now()
 	for{
 		time.Sleep(10 * time.Second)
 		report = c.report()
-		if report[0] == 't'{
+		if report[0] == 't' || time.Now().Sub(startTime) > 1800 * time.Second{
 			// finished
 			break
 		}
-		print("protocol haven't finished!\n")
 	}
 	print("Auto-test completed!\n")
 	fmt.Printf("%d, %d, %s", size, len(c.ServerList), report)

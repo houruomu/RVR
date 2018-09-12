@@ -57,6 +57,9 @@ func(d durationSlice) Less(i,j int) bool{
 }
 
 func (data *Data) time(percentile float64) time.Duration{
+	if len(data.states) == 0{
+		return 0;
+	}
 	times := make([]time.Duration, len(data.states))
 	for i, _ := range data.states{
 		times[i] = data.states[i].FinishTime.Sub(data.states[i].StartTime)
@@ -84,6 +87,7 @@ func (data *Data) byteCount(percentile float64) int {
 }
 
 func (d *Data) Report() string{
+	if len(d.states) == 0{return ""}
 	report := fmt.Sprintf("%t, %t, %d, %d, %f, %f, %d, %d, %f, %d, %d, %d, %d, %d, %d\n",
 		d.checkFinished(),
 		d.checkConsensus(),

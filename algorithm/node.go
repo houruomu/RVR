@@ -236,7 +236,9 @@ func (p *ProtocolState) Start(command int, rtv *int) error {
 		defer func(){
 			if r := recover(); r != nil {
 				// fail gracefully
-				p.ExitSignal <- true
+				p.Finished = true
+				p.FinishTime = time.Now()
+				p.Exit(1, nil)
 			}
 		}()
 		p.viewReconciliation()
