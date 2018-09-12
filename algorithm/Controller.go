@@ -97,7 +97,7 @@ func (c *ControllerState) setupRandomizedView() error {
 	for i, _ := range c.PeerList {
 		view := make([]uint64, 0)
 		for j, _ := range c.PeerList {
-			if (rand.Float32() < 0.4) {
+			if (rand.Float32() < 0.7) {
 				view = append(view, c.PeerList[j].GetUUID())
 			}
 		}
@@ -326,13 +326,27 @@ func (c *ControllerState) autoTest(size int, params ProtocolRPCSetupParams){
 }
 
 func (c *ControllerState) batchTest(){
-	sizeList := []int {5, 10, 20, 40, 80, 160, 250}
-	durationList := []int32 {20, 40, 80, 160, 320, 640}
+	sizeList := []int {160, 320}
+	durationList := []int32 {600}
+	deltaList := []float64{0.001,0.005, 0.0075, 0.01}
+	fList := []float64{0.01,0.02, 0.05}
+	gList := []float64{0.005, 0.01}
 
 	for _, size := range sizeList{
 		for _, dur := range durationList{
-			c.SetupParams.RoundDuration = time.Duration(dur) * time.Millisecond
-			c.autoTest(size, c.SetupParams)
+			for _, delta := range deltaList{
+				for _, f := range fList{
+					for _, g := range gList{
+						for i := 0; i < 5 ; i++{
+							c.SetupParams.RoundDuration = time.Duration(dur) * time.Millisecond
+							c.SetupParams.Delta = delta
+							c.SetupParams.F = f
+							c.SetupParams.G = g
+							c.autoTest(size, c.SetupParams)
+						}
+					}
+				}
+			}
 		}
 	}
 }
