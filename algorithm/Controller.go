@@ -34,13 +34,14 @@ type ControllerState struct {
 	PeerList    []message.Identity
 	Address     string
 	ServerList  []string
+	NetworkMetric []PingValueReport
 }
 func (c *ControllerState) checkConnection(){
 	connectedPeers := make([]message.Identity, 0)
 	for i, _ := range c.PeerList{
 		client, err := rpc.Dial("tcp", c.PeerList[i].Address)
 		if err != nil {
-			log.Print("Peer %s disconnected.\n", c.PeerList[i].Address)
+			log.Printf("Peer %s disconnected.\n", c.PeerList[i].Address)
 			continue
 		}
 		connectedPeers = append(connectedPeers, c.PeerList[i])
@@ -52,7 +53,7 @@ func (c *ControllerState) checkConnection(){
 	for i, _ := range c.ServerList{
 		client, err := rpc.Dial("tcp", c.ServerList[i])
 		if err != nil {
-			log.Print("Peer %s disconnected.\n", c.ServerList[i])
+			log.Printf("Server %s disconnected.\n", c.ServerList[i])
 			continue
 		}
 		connectedServers = append(connectedServers, c.ServerList[i])
@@ -209,7 +210,53 @@ func (c *ControllerState) checkState(address string) string {
 	return state.String()
 }
 
+func (c *ControllerState) AcceptReport(report PingValueReport, ph2 *int) error{
+	c.NetworkMetric = append(c.NetworkMetric, report)
+	return nil
+}
+
+func (c *ControllerState) measure() {
+	c.NetworkMetric = make([]PingValueReport, 0)
+	for i, _ := range c.PeerList {
+		client, err := rpc.Dial("tcp", c.PeerList[i].Address)
+		if err != nil {
+			continue
+		}
+		defer client.Close()
+		client.Go("ProtocolState.PingReport", 2000, nil, nil)
+	}
+
+	time.Sleep(6 * c.SetupParams.RoundDuration)
+
+	// process
+	peerCount := len(c.PeerList)
+	reportCount := len(c.NetworkMetric)
+	connectionCount := 0
+	failCount := 0
+	totalDelay := float64(0)
+	for i, _ := range c.NetworkMetric{
+		for _, delay := range c.NetworkMetric[i]{
+			if delay == -1{
+				failCount++
+			}else{
+				connectionCount++
+				totalDelay += float64(delay)/1000000.0
+			}
+		}
+	}
+	fmt.Printf("Out of %d peers, %d replied, with %d failed measures, the average delay is %f\n",
+		peerCount,
+		reportCount,
+		failCount,
+		totalDelay/float64(connectionCount))
+}
+
 func (c *ControllerState) report() string {
+	defer func() {
+		if r := recover(); r != nil {
+			fmt.Printf("Panic Catched in report %s\n", r)
+		}
+	}()
 	state := make([]ProtocolState, 0)
 	for i,_ := range c.PeerList{
 		client, err := rpc.Dial("tcp", c.PeerList[i].Address)
@@ -277,6 +324,8 @@ func (c *ControllerState) StartListen() {
 				// pick a random node to retrieve state
 				nodeAddr := c.PeerList[rand.Int()%len(c.PeerList)].Address
 				print(c.checkState(nodeAddr))
+			case "measure":
+				c.measure()
 			case "report":
 				// pick a random node to retrieve state
 				print(c.report())
@@ -316,7 +365,7 @@ func (c *ControllerState) autoTest(size int, params ProtocolRPCSetupParams){
 	for{
 		time.Sleep(10 * time.Second)
 		report = c.report()
-		if report[0] == 't' || time.Now().Sub(startTime) > 1800 * time.Second{
+		if report[0] == 't' || time.Now().Sub(startTime) > 3600 * time.Second{
 			// finished
 			break
 		}
@@ -328,8 +377,8 @@ func (c *ControllerState) autoTest(size int, params ProtocolRPCSetupParams){
 func (c *ControllerState) batchTest(){
 	sizeList := []int {160, 320}
 	durationList := []int32 {600}
-	deltaList := []float64{0.001,0.005, 0.0075, 0.01}
-	fList := []float64{0.01,0.02, 0.05}
+	deltaList := []float64{0.01,0.005, 0.001}
+	fList := []float64{0.01,0.02, 0.03}
 	gList := []float64{0.005, 0.01}
 
 	for _, size := range sizeList{
@@ -337,7 +386,7 @@ func (c *ControllerState) batchTest(){
 			for _, delta := range deltaList{
 				for _, f := range fList{
 					for _, g := range gList{
-						for i := 0; i < 5 ; i++{
+						for i := 0; i < 1 ; i++{
 							c.SetupParams.RoundDuration = time.Duration(dur) * time.Millisecond
 							c.SetupParams.Delta = delta
 							c.SetupParams.F = f

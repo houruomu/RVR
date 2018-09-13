@@ -43,6 +43,7 @@ func (data *Data) checkFinished() bool{
 	}
 	return true
 }
+type PingValueReport []int
 type durationSlice []time.Duration
 func(d durationSlice) Len() int{
 	return len(d)

@@ -88,6 +88,50 @@ func GetOutboundAddr() string {
 	return localAddr.IP.String()
 }
 
+func (p *ProtocolState) testPing(size int, addr string) int {
+	data := make([]byte, size)
+	rand.Read(data)
+	startTime := time.Now()
+	client, err := rpc.Dial("tcp", addr)
+	if err != nil {
+		return -1
+	}
+	defer client.Close()
+	err = client.Call("ProtocolState.BlackHole", data, nil)
+	if err != nil{
+		return -1
+	}
+	return int(time.Now().Sub(startTime))
+}
+
+func (p *ProtocolState) pingReport(size int) PingValueReport {
+	report := make(PingValueReport, len(p.initView))
+	for i, _:= range report{
+		go func(i int){
+			report[i] = p.testPing(size, p.initView[i].Address)
+		}(i)
+	}
+	time.Sleep(2 * p.roundDuration)
+	return report
+}
+
+func (p *ProtocolState) PingReport(size int, rtv *int) error{
+	go func(){
+		report := p.pingReport(size)
+
+	}()
+}
+
+func (p *ProtocolState) BlackHole(msg []byte, rtv *int) error{
+	// this is a blackhole function for measuring ping value
+	for i, _ := range msg{
+		if msg[i] == 0{
+			return nil
+		}
+	}
+	return nil
+}
+
 func (p *ProtocolState) SendInMsg(msg message.Message, rtv *int) error {
 	p.lock.RLock()
 	if (msg.Round < p.Round-p.offset) {
