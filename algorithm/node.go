@@ -118,8 +118,14 @@ func (p *ProtocolState) pingReport(size int) PingValueReport {
 func (p *ProtocolState) PingReport(size int, rtv *int) error{
 	go func(){
 		report := p.pingReport(size)
-
+		client, err := rpc.Dial("tcp", p.ControlAddress)
+		if err != nil {
+			return
+		}
+		defer client.Close()
+		client.Call("ControllerState.AcceptReport", report, nil)
 	}()
+	return nil
 }
 
 func (p *ProtocolState) BlackHole(msg []byte, rtv *int) error{

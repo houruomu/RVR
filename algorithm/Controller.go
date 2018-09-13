@@ -403,6 +403,6 @@ func (c *ControllerState) batchTest(){
 
 
 func StartServer(exitSignal chan bool){
-	c := ControllerState{exitSignal, DefaultSetupParams, make([]message.Identity, 0), "", make([]string, 0)}
+	c := ControllerState{exitSignal, DefaultSetupParams, make([]message.Identity, 0), "", make([]string, 0), make([]PingValueReport, 0)}
 	go c.StartListen()
 }
