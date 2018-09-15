@@ -39,25 +39,23 @@ type ControllerState struct {
 func (c *ControllerState) checkConnection(){
 	connectedPeers := make([]message.Identity, 0)
 	for i, _ := range c.PeerList{
-		client, err := rpc.Dial("tcp", c.PeerList[i].Address)
+		err := RpcCall(c.PeerList[i].Address, "ProtocolState.BlackHole", make([]byte,0), nil)
 		if err != nil {
 			log.Printf("Peer %s disconnected.\n", c.PeerList[i].Address)
 			continue
 		}
 		connectedPeers = append(connectedPeers, c.PeerList[i])
-		client.Close()
 	}
 	c.PeerList = connectedPeers
 
 	connectedServers := make([]string, 0)
 	for i, _ := range c.ServerList{
-		client, err := rpc.Dial("tcp", c.ServerList[i])
+		err := RpcCall(c.PeerList[i].Address, "SpawnerState.BlackHole", make([]byte,0), nil)
 		if err != nil {
 			log.Printf("Server %s disconnected.\n", c.ServerList[i])
 			continue
 		}
 		connectedServers = append(connectedServers, c.ServerList[i])
-		client.Close()
 	}
 	c.ServerList = connectedServers
 }
@@ -74,12 +72,7 @@ func (c *ControllerState) spawnEvenly(count int){
 }
 
 func (c *ControllerState) Spawn(addr string, count int) {
-	client, err := rpc.Dial("tcp", addr)
-	if err != nil {
-		log.Print("Spawning:", err.Error())
-	}
-	defer client.Close()
-	client.Call("SpawnerState.Spawn", count, nil)
+	RpcCall(addr, "SpawnerState.Spawn", count, nil)
 }
 
 func (c *ControllerState) RegisterServer(addr string, rtv *int) error {
@@ -102,13 +95,7 @@ func (c *ControllerState) setupRandomizedView() error {
 				view = append(view, c.PeerList[j].GetUUID())
 			}
 		}
-		client, err := rpc.Dial("tcp", c.PeerList[i].Address)
-		if err != nil {
-			log.Print("Setting view:", err.Error())
-			return nil
-		}
-		defer client.Close()
-		client.Go("ProtocolState.SetView", view, nil, nil)
+		go RpcCall(c.PeerList[i].Address, "ProtocolState.SetView", view, nil)
 	}
 	return nil
 }
@@ -259,14 +246,8 @@ func (c *ControllerState) report() string {
 	}()
 	state := make([]ProtocolState, 0)
 	for i,_ := range c.PeerList{
-		client, err := rpc.Dial("tcp", c.PeerList[i].Address)
-		if err != nil {
-			log.Print("Check State:", err.Error())
-			continue
-		}
-		defer client.Close()
 		newState := ProtocolState{}
-		err = client.Call("ProtocolState.RetrieveState", 1, &newState)
+		err := RpcCall(c.PeerList[i].Address, "ProtocolState.RetrieveState", 1, &newState)
 		if err != nil{
 			log.Print("Check State RPC:", err.Error())
 			continue

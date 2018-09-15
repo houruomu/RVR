@@ -65,3 +65,13 @@ func StartSpawner(controlAddr string, exitSignal chan bool){
 	server := SpawnerState{ControlAddress:controlAddr, ExitSignal:exitSignal}
 	server.Start()
 }
+
+func (s *SpawnerState) BlackHole(msg []byte, rtv *int) error {
+	// this is a blackhole function for measuring ping value
+	for i, _ := range msg {
+		if msg[i] == 0 {
+			return nil
+		}
+	}
+	return nil
+}

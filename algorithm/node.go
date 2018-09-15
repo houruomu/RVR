@@ -50,6 +50,7 @@ type ProtocolState struct {
 	ByteCount      int
 	LargestMsgSize int
 	MsgReceived    int
+	PingEstimate   float64 // use filter to estimate ping
 }
 
 type ProtocolRPCSetupParams struct {
@@ -63,6 +64,8 @@ type ProtocolRPCSetupParams struct {
 	Id            message.Identity
 	InitView      []message.Identity
 }
+
+
 
 func (p *ProtocolRPCSetupParams) String() string {
 	// print the current state summary
@@ -92,13 +95,8 @@ func (p *ProtocolState) testPing(size int, addr string) int {
 	data := make([]byte, size)
 	rand.Read(data)
 	startTime := time.Now()
-	client, err := rpc.Dial("tcp", addr)
+	err := RpcCall(addr,"ProtocolState.BlackHole", data, nil )
 	if err != nil {
-		return -1
-	}
-	defer client.Close()
-	err = client.Call("ProtocolState.BlackHole", data, nil)
-	if err != nil{
 		return -1
 	}
 	return int(time.Now().Sub(startTime))
@@ -106,8 +104,8 @@ func (p *ProtocolState) testPing(size int, addr string) int {
 
 func (p *ProtocolState) pingReport(size int) PingValueReport {
 	report := make(PingValueReport, len(p.initView))
-	for i, _:= range report{
-		go func(i int){
+	for i, _ := range report {
+		go func(i int) {
 			report[i] = p.testPing(size, p.initView[i].Address)
 		}(i)
 	}
@@ -115,23 +113,18 @@ func (p *ProtocolState) pingReport(size int) PingValueReport {
 	return report
 }
 
-func (p *ProtocolState) PingReport(size int, rtv *int) error{
-	go func(){
+func (p *ProtocolState) PingReport(size int, rtv *int) error {
+	go func() {
 		report := p.pingReport(size)
-		client, err := rpc.Dial("tcp", p.ControlAddress)
-		if err != nil {
-			return
-		}
-		defer client.Close()
-		client.Call("ControllerState.AcceptReport", report, nil)
+		RpcCall(p.ControlAddress, "ControllerState.AcceptReport", report, nil)
 	}()
 	return nil
 }
 
-func (p *ProtocolState) BlackHole(msg []byte, rtv *int) error{
+func (p *ProtocolState) BlackHole(msg []byte, rtv *int) error {
 	// this is a blackhole function for measuring ping value
-	for i, _ := range msg{
-		if msg[i] == 0{
+	for i, _ := range msg {
+		if msg[i] == 0 {
 			return nil
 		}
 	}
@@ -216,34 +209,18 @@ func (p *ProtocolState) GetReady() {
 	if err != nil {
 		panic(err)
 	}
+
 	// setup RPC server
-	handler := rpc.NewServer() // allows multiple rpc at a time
-	handler.Register(p)
-	l, e := net.Listen("tcp", ":0") // Listen on OS chosen addr
-	if e != nil {
-		log.Fatal("listen error:", e)
-	}
-	go func() {
-		for {
-			conn, err := l.Accept()
-			if err != nil {
-				log.Print("Error: accept rpc connection", err.Error())
-				continue
-			}
-			go handler.ServeConn(conn)
-		}
-	}()
+	portString := ListenRPC(":0", p)
+
 	myIP := GetOutboundAddr()
-	myPort := l.Addr().String()[strings.LastIndex(l.Addr().String(), ":"):]
+	myPort := portString[strings.LastIndex(portString, ":"):]
 	p.MyId = message.Identity{myIP + myPort, x509.MarshalPKCS1PublicKey(&p.privateKey.PublicKey)}
+
 	// report to controller
-	client, err := rpc.Dial("tcp", p.ControlAddress)
-	if err != nil {
-		log.Fatal(err.Error())
-	}
-	defer client.Close()
+	RpcCall(p.ControlAddress, "ControllerState.Register", p.MyId, nil)
 	fmt.Printf("Node ready to receive instructions, Address: %s\n", p.MyId.Address)
-	client.Go("ControllerState.Register", p.MyId, nil, nil)
+
 }
 
 func (p *ProtocolState) Setup(state ProtocolRPCSetupParams, rtv *int) error {
@@ -283,7 +260,7 @@ func (p *ProtocolState) Start(command int, rtv *int) error {
 	p.ticker = time.Tick(p.roundDuration)
 	// invoke View Reconciliation (asynchrously)
 	go func() {
-		defer func(){
+		defer func() {
 			if r := recover(); r != nil {
 				// fail gracefully
 				p.Finished = true
@@ -334,13 +311,7 @@ func (p *ProtocolState) addToInitView(id message.Identity) {
 
 func (p *ProtocolState) sendMsgToPeerAsync(m message.Message, addr string) {
 	go func() {
-		client, err := rpc.Dial("tcp", addr)
-		if err != nil {
-			log.Print("dialing:", err.Error())
-			return
-		}
-		defer client.Close()
-		client.Go("ProtocolState.SendInMsg", m, nil, nil)
+		RpcCall(addr, "ProtocolState.SendInMsg", m, nil)
 
 		// measurement
 		p.MsgCount++
