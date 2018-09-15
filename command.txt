@@ -1,5 +1,5 @@
-screen -d -m killall -u houruomu
-exit
+# screen -d -m killall -u houruomu
+# exit
 
 wget -O RVR https://github.com/houruomu/RVR/raw/master/RVR
 chmod +x RVR

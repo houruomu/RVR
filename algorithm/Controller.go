@@ -7,7 +7,6 @@ import (
 	"log"
 	"math"
 	"math/rand"
-	"net"
 	"net/rpc"
 	"os"
 	"strings"
@@ -107,19 +106,9 @@ func (c *ControllerState) SetupProtocol(ph1 int, ph2 *int) error {
 
 	connectedPeers := make([]message.Identity, 0)
 	for i, _ := range c.PeerList {
-		client, err := rpc.Dial("tcp", c.PeerList[i].Address)
-		if err != nil {
-			log.Print("Setup protocol:", err.Error())
-			return nil
-		}
-		defer client.Close()
-		err = client.Call("ProtocolState.Setup", c.SetupParams, nil)
-		for j := 0; j < 5 && err != nil; j++{
-			time.Sleep(100 * time.Millisecond)
-			err = client.Call("ProtocolState.Setup", c.SetupParams, nil)
-		}
+		err := RpcCall(c.PeerList[i].Address, "ProtocolState.Setup", c.SetupParams, nil)
 		if err != nil{
-			client.Call("ProtocolState.Exit", 1, nil)
+			RpcCall(c.PeerList[i].Address, "ProtocolState.Exit", c.SetupParams, nil)
 		}else{
 			connectedPeers = append(connectedPeers, c.PeerList[i])
 		}
@@ -131,12 +120,7 @@ func (c *ControllerState) SetupProtocol(ph1 int, ph2 *int) error {
 }
 
 func (c *ControllerState) killNode(addr string){
-	client, err := rpc.Dial("tcp", addr)
-	if err != nil {
-		log.Print("Killing peer:", err.Error())
-	}
-	defer client.Close()
-	client.Call("ProtocolState.Exit", 1, nil)
+	RpcCall(addr, "ProtocolState.Exit", c.SetupParams, nil)
 }
 
 func (c *ControllerState) KillNodes(ph1 int, ph2 *int) error {
@@ -148,13 +132,7 @@ func (c *ControllerState) KillNodes(ph1 int, ph2 *int) error {
 
 func (c *ControllerState) KillServers(ph1 int, ph2 *int) error {
 	for i, _ := range c.ServerList {
-		client, err := rpc.Dial("tcp", c.ServerList[i])
-		if err != nil {
-			log.Print("Killing server:", err.Error())
-			return nil
-		}
-		defer client.Close()
-		client.Call("SpawnerState.Exit", 1, nil)
+		RpcCall(c.ServerList[i],"SpawnerState.Exit", 1, nil)
 	}
 	return nil
 }
@@ -187,13 +165,7 @@ func (c *ControllerState) StartProtocol(ph1 int, ph2 *int) error {
 
 func (c *ControllerState) checkState(address string) string {
 	state := ProtocolState{}
-	client, err := rpc.Dial("tcp", address)
-	if err != nil {
-		log.Print("Check State:", err.Error())
-		return "Error\n"
-	}
-	defer client.Close()
-	client.Call("ProtocolState.RetrieveState", 1, &state)
+	RpcCall(address, "ProtocolState.RetrieveState", 1, &state)
 	return state.String()
 }
 
@@ -205,12 +177,7 @@ func (c *ControllerState) AcceptReport(report PingValueReport, ph2 *int) error{
 func (c *ControllerState) measure() {
 	c.NetworkMetric = make([]PingValueReport, 0)
 	for i, _ := range c.PeerList {
-		client, err := rpc.Dial("tcp", c.PeerList[i].Address)
-		if err != nil {
-			continue
-		}
-		defer client.Close()
-		client.Go("ProtocolState.PingReport", 2000, nil, nil)
+		go RpcCall(c.PeerList[i].Address, "ProtocolState.PingReport", 2000, nil)
 	}
 
 	time.Sleep(6 * c.SetupParams.RoundDuration)
@@ -260,24 +227,10 @@ func (c *ControllerState) report() string {
 
 func (c *ControllerState) StartListen() {
 	c.PeerList = make([]message.Identity, 0)
-	handler := rpc.NewServer() // allows multiple rpc at a time
-	handler.Register(c)
-	l, e := net.Listen("tcp", ":9696") // Listen on Specific port
-	if e != nil {
-		log.Fatal("listen error:", e)
-	}
-	go func() {
-		for {
-			conn, err := l.Accept()
-			if err != nil {
-				log.Print("Error: accept rpc connection", err.Error())
-				continue
-			}
-			go handler.ServeConn(conn)
-		}
-	}()
+
+	portString := ListenRPC(":9696", c)
+	myPort := portString[strings.LastIndex(portString, ":"):]
 	myIP := GetOutboundAddr()
-	myPort := l.Addr().String()[strings.LastIndex(l.Addr().String(), ":"):]
 	c.Address = myIP + myPort
 	fmt.Printf("Controller started at Address: %s\n", c.Address)
 

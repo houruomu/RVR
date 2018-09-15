@@ -65,8 +65,6 @@ type ProtocolRPCSetupParams struct {
 	InitView      []message.Identity
 }
 
-
-
 func (p *ProtocolRPCSetupParams) String() string {
 	// print the current state summary
 	return fmt.Sprintf("-----------------------\n"+
@@ -211,10 +209,10 @@ func (p *ProtocolState) GetReady() {
 	}
 
 	// setup RPC server
-	portString := ListenRPC(":0", p)
-
 	myIP := GetOutboundAddr()
+	portString := ListenRPC(":0", p)
 	myPort := portString[strings.LastIndex(portString, ":"):]
+
 	p.MyId = message.Identity{myIP + myPort, x509.MarshalPKCS1PublicKey(&p.privateKey.PublicKey)}
 
 	// report to controller
