@@ -50,7 +50,7 @@ func (c *ControllerState) checkConnection(){
 
 	connectedServers := make([]string, 0)
 	for i, _ := range c.ServerList{
-		err := RpcCall(c.PeerList[i].Address, "SpawnerState.BlackHole", make([]byte,0), nil)
+		err := RpcCall(c.ServerList[i], "SpawnerState.BlackHole", make([]byte,0), nil)
 		if err != nil {
 			log.Printf("Server %s disconnected.\n", c.ServerList[i])
 			continue
