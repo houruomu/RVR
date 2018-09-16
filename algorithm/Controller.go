@@ -28,17 +28,18 @@ var DefaultSetupParams = ProtocolRPCSetupParams{
 }
 
 type ControllerState struct {
-	ExitSignal  chan bool
-	SetupParams ProtocolRPCSetupParams
-	PeerList    []message.Identity
-	Address     string
-	ServerList  []string
+	ExitSignal    chan bool
+	SetupParams   ProtocolRPCSetupParams
+	PeerList      []message.Identity
+	Address       string
+	ServerList    []string
 	NetworkMetric []PingValueReport
 }
-func (c *ControllerState) checkConnection(){
+
+func (c *ControllerState) checkConnection() {
 	connectedPeers := make([]message.Identity, 0)
-	for i, _ := range c.PeerList{
-		err := RpcCall(c.PeerList[i].Address, "ProtocolState.BlackHole", make([]byte,0), nil)
+	for i, _ := range c.PeerList {
+		err := RpcCall(c.PeerList[i].Address, "ProtocolState.BlackHole", make([]byte, 0), nil)
 		if err != nil {
 			log.Printf("Peer %s disconnected.\n", c.PeerList[i].Address)
 			continue
@@ -48,8 +49,8 @@ func (c *ControllerState) checkConnection(){
 	c.PeerList = connectedPeers
 
 	connectedServers := make([]string, 0)
-	for i, _ := range c.ServerList{
-		err := RpcCall(c.ServerList[i], "SpawnerState.BlackHole", make([]byte,0), nil)
+	for i, _ := range c.ServerList {
+		err := RpcCall(c.ServerList[i], "SpawnerState.BlackHole", make([]byte, 0), nil)
 		if err != nil {
 			log.Printf("Server %s disconnected.\n", c.ServerList[i])
 			continue
@@ -59,11 +60,11 @@ func (c *ControllerState) checkConnection(){
 	c.ServerList = connectedServers
 }
 
-func (c *ControllerState) spawnEvenly(count int){
+func (c *ControllerState) spawnEvenly(count int) {
 	c.checkConnection()
-	for i, _ := range c.ServerList{
+	for i, _ := range c.ServerList {
 		numInstance := count / len(c.ServerList)
-		if i < count % len(c.ServerList){
+		if i < count%len(c.ServerList) {
 			numInstance++
 		}
 		c.Spawn(c.ServerList[i], numInstance)
@@ -107,9 +108,9 @@ func (c *ControllerState) SetupProtocol(ph1 int, ph2 *int) error {
 	connectedPeers := make([]message.Identity, 0)
 	for i, _ := range c.PeerList {
 		err := RpcCall(c.PeerList[i].Address, "ProtocolState.Setup", c.SetupParams, nil)
-		if err != nil{
+		if err != nil {
 			RpcCall(c.PeerList[i].Address, "ProtocolState.Exit", c.SetupParams, nil)
-		}else{
+		} else {
 			connectedPeers = append(connectedPeers, c.PeerList[i])
 		}
 	}
@@ -119,7 +120,7 @@ func (c *ControllerState) SetupProtocol(ph1 int, ph2 *int) error {
 	return nil
 }
 
-func (c *ControllerState) killNode(addr string){
+func (c *ControllerState) killNode(addr string) {
 	RpcCall(addr, "ProtocolState.Exit", c.SetupParams, nil)
 }
 
@@ -132,7 +133,7 @@ func (c *ControllerState) KillNodes(ph1 int, ph2 *int) error {
 
 func (c *ControllerState) KillServers(ph1 int, ph2 *int) error {
 	for i, _ := range c.ServerList {
-		RpcCall(c.ServerList[i],"SpawnerState.Exit", 1, nil)
+		RpcCall(c.ServerList[i], "SpawnerState.Exit", 1, nil)
 	}
 	return nil
 }
@@ -148,12 +149,12 @@ func (c *ControllerState) StartProtocol(ph1 int, ph2 *int) error {
 		defer client.Close()
 		callList[i] = client.Go("ProtocolState.Start", 1, nil, nil)
 	}
-	time.Sleep(time.Duration(c.SetupParams.Offset + 1) * c.SetupParams.RoundDuration)
+	time.Sleep(time.Duration(c.SetupParams.Offset+1) * c.SetupParams.RoundDuration)
 
 	startedPeers := make([]message.Identity, 0)
-	for i, call := range callList{
-		select{
-		case <- call.Done:
+	for i, call := range callList {
+		select {
+		case <-call.Done:
 			startedPeers = append(startedPeers, c.PeerList[i])
 		default:
 			c.killNode(c.PeerList[i].Address)
@@ -169,7 +170,7 @@ func (c *ControllerState) checkState(address string) string {
 	return state.String()
 }
 
-func (c *ControllerState) AcceptReport(report PingValueReport, ph2 *int) error{
+func (c *ControllerState) AcceptReport(report PingValueReport, ph2 *int) error {
 	c.NetworkMetric = append(c.NetworkMetric, report)
 	return nil
 }
@@ -188,13 +189,13 @@ func (c *ControllerState) measure() {
 	connectionCount := 0
 	failCount := 0
 	totalDelay := float64(0)
-	for i, _ := range c.NetworkMetric{
-		for _, delay := range c.NetworkMetric[i]{
-			if delay == -1{
+	for i, _ := range c.NetworkMetric {
+		for _, delay := range c.NetworkMetric[i] {
+			if delay == -1 {
 				failCount++
-			}else{
+			} else {
 				connectionCount++
-				totalDelay += float64(delay)/1000000.0
+				totalDelay += float64(delay) / 1000000.0
 			}
 		}
 	}
@@ -212,10 +213,10 @@ func (c *ControllerState) report() string {
 		}
 	}()
 	state := make([]ProtocolState, 0)
-	for i,_ := range c.PeerList{
+	for i, _ := range c.PeerList {
 		newState := ProtocolState{}
 		err := RpcCall(c.PeerList[i].Address, "ProtocolState.RetrieveState", 1, &newState)
-		if err != nil{
+		if err != nil {
 			log.Print("Check State RPC:", err.Error())
 			continue
 		}
@@ -235,8 +236,8 @@ func (c *ControllerState) StartListen() {
 	fmt.Printf("Controller started at Address: %s\n", c.Address)
 
 	// setup watchdog
-	go func(){
-		for{
+	go func() {
+		for {
 			time.Sleep(30 * time.Second)
 			c.checkConnection()
 		}
@@ -281,10 +282,10 @@ func (c *ControllerState) StartListen() {
 
 }
 
-func (c *ControllerState) autoTest(size int, params ProtocolRPCSetupParams){
+func (c *ControllerState) autoTest(size int, params ProtocolRPCSetupParams) {
 	c.KillNodes(1, nil)
 	c.PeerList = make([]message.Identity, 0)
-	for len(c.PeerList) < size{
+	for len(c.PeerList) < size {
 		c.spawnEvenly(size - len(c.PeerList))
 		time.Sleep(10 * time.Second)
 	}
@@ -296,10 +297,10 @@ func (c *ControllerState) autoTest(size int, params ProtocolRPCSetupParams){
 	print("Auto-test starting!\n")
 	var report string
 	startTime := time.Now()
-	for{
+	for {
 		time.Sleep(10 * time.Second)
 		report = c.report()
-		if report[0] == 't' || time.Now().Sub(startTime) > 3600 * time.Second{
+		if report[0] == 't' || time.Now().Sub(startTime) > 2000*time.Second {
 			// finished
 			break
 		}
@@ -308,19 +309,19 @@ func (c *ControllerState) autoTest(size int, params ProtocolRPCSetupParams){
 	fmt.Printf("%d, %d, %s", size, len(c.ServerList), report)
 }
 
-func (c *ControllerState) batchTest(){
-	sizeList := []int {160, 320}
-	durationList := []int32 {600}
-	deltaList := []float64{0.01,0.005, 0.001}
-	fList := []float64{0.01,0.02, 0.03}
+func (c *ControllerState) batchTest() {
+	sizeList := []int{160, 320}
+	durationList := []int32{600}
+	deltaList := []float64{0.01, 0.005, 0.001}
+	fList := []float64{0.01, 0.02, 0.03}
 	gList := []float64{0.005, 0.01}
 
-	for _, size := range sizeList{
-		for _, dur := range durationList{
-			for _, delta := range deltaList{
-				for _, f := range fList{
-					for _, g := range gList{
-						for i := 0; i < 1 ; i++{
+	for _, size := range sizeList {
+		for _, dur := range durationList {
+			for _, delta := range deltaList {
+				for _, f := range fList {
+					for _, g := range gList {
+						for i := 0; i < 1; i++ {
 							c.SetupParams.RoundDuration = time.Duration(dur) * time.Millisecond
 							c.SetupParams.Delta = delta
 							c.SetupParams.F = f
@@ -334,9 +335,7 @@ func (c *ControllerState) batchTest(){
 	}
 }
 
-
-
-func StartServer(exitSignal chan bool){
+func StartServer(exitSignal chan bool) {
 	c := ControllerState{exitSignal, DefaultSetupParams, make([]message.Identity, 0), "", make([]string, 0), make([]PingValueReport, 0)}
 	go c.StartListen()
 }

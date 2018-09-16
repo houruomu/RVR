@@ -27,7 +27,6 @@ func main() {
 		log.Fatalf("Unsupported mode: %s\n Try:node/controller\n", mode)
 		return
 	}
-	<- exitSignal
+	<-exitSignal
 	println("exiting!")
 }
-

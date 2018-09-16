@@ -93,7 +93,7 @@ func (p *ProtocolState) testPing(size int, addr string) int {
 	data := make([]byte, size)
 	rand.Read(data)
 	startTime := time.Now()
-	err := RpcCall(addr,"ProtocolState.BlackHole", data, nil )
+	err := RpcCall(addr, "ProtocolState.BlackHole", data, nil)
 	if err != nil {
 		return -1
 	}
@@ -103,6 +103,7 @@ func (p *ProtocolState) testPing(size int, addr string) int {
 func (p *ProtocolState) pingReport(size int) PingValueReport {
 	report := make(PingValueReport, len(p.initView))
 	for i, _ := range report {
+		report[i] = -1
 		go func(i int) {
 			report[i] = p.testPing(size, p.initView[i].Address)
 		}(i)
