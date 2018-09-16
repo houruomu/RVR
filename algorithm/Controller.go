@@ -97,6 +97,7 @@ func (c *ControllerState) Register(id message.Identity, rtv *int) error {
 }
 
 func (c *ControllerState) setupRandomizedView() error {
+	c.lock.RLock()
 	for i, _ := range c.PeerList {
 		view := make([]uint64, 0)
 		for j, _ := range c.PeerList {
@@ -106,6 +107,7 @@ func (c *ControllerState) setupRandomizedView() error {
 		}
 		go RpcCall(c.PeerList[i].Address, "ProtocolState.SetView", view, nil)
 	}
+	c.lock.RUnlock()
 	return nil
 }
 
@@ -115,6 +117,7 @@ func (c *ControllerState) SetupProtocol(ph1 int, ph2 *int) error {
 	c.SetupParams.X = int(math.Ceil(math.Log(nEstimate)/math.Log(math.Log(nEstimate))+4.0))*c.SetupParams.L + c.SetupParams.Offset
 
 	connectedPeers := make([]message.Identity, 0)
+	c.lock.RLock()
 	for i, _ := range c.PeerList {
 		err := RpcCall(c.PeerList[i].Address, "ProtocolState.Setup", c.SetupParams, nil)
 		if err != nil {
@@ -123,7 +126,10 @@ func (c *ControllerState) SetupProtocol(ph1 int, ph2 *int) error {
 			connectedPeers = append(connectedPeers, c.PeerList[i])
 		}
 	}
+	c.lock.RUnlock()
+	c.lock.Lock()
 	c.PeerList = connectedPeers
+	c.lock.Unlock()
 	c.setupRandomizedView()
 	print(c.SetupParams.String())
 	return nil
