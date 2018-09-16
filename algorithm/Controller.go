@@ -100,7 +100,7 @@ func (c *ControllerState) setupRandomizedView() error {
 	for i, _ := range c.PeerList {
 		view := make([]uint64, 0)
 		for j, _ := range c.PeerList {
-			if (rand.Float32() < 0.7) {
+			if (rand.Float32() < 0.645) {
 				view = append(view, c.PeerList[j].GetUUID())
 			}
 		}
@@ -216,10 +216,10 @@ func (c *ControllerState) measure() {
 		}
 	}
 	var avgDelay float64
-	if connectionCount == 0{
+	if connectionCount == 0 {
 		avgDelay = -1
-	}else{
-		avgDelay = totalDelay/float64(connectionCount)
+	} else {
+		avgDelay = totalDelay / float64(connectionCount)
 	}
 	fmt.Printf("Out of %d peers, %d replied, with %d failed measures, the average delay is %f\n",
 		peerCount,
@@ -251,7 +251,7 @@ func (c *ControllerState) report() string {
 func (c *ControllerState) StartListen() {
 	c.PeerList = make([]message.Identity, 0)
 
-	portString := ListenRPC(":9696", c)
+	portString := ListenRPC(":9696", c, c.ExitSignal)
 	myPort := portString[strings.LastIndex(portString, ":"):]
 	myIP := GetOutboundAddr()
 	c.Address = myIP + myPort
@@ -328,7 +328,7 @@ func (c *ControllerState) autoTest(size int, params ProtocolRPCSetupParams) {
 		}
 	}
 	print("Auto-test completed!\n")
-	fmt.Printf("%d, %d, %s", size, len(c.ServerList), report)
+	fmt.Printf("%d, %d, %s", len(c.PeerList), len(c.ServerList), report)
 }
 
 func (c *ControllerState) batchTest() {
@@ -358,6 +358,8 @@ func (c *ControllerState) batchTest() {
 }
 
 func StartServer(exitSignal chan bool) {
-	c := ControllerState{exitSignal, DefaultSetupParams, make([]message.Identity, 0), "", make([]string, 0), make([]PingValueReport, 0), sync.RWMutex{}}
+	c := ControllerState{}
+	c.ExitSignal = exitSignal
+	c.SetupParams = DefaultSetupParams
 	go c.StartListen()
 }

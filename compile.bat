@@ -1,7 +1,7 @@
 env GOOS=linux GOARCH=amd64 go build
 env GOOS=windows GOARCH=amd64 go build
 git add *
-git commit -m "add locks"
+git commit -m "add mutexes and exit sequence, self monitoring for nodes"
 git push
 
 exit

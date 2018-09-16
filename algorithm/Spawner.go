@@ -16,8 +16,15 @@ func (s *SpawnerState) Spawn(count int, rtv *int) error {
 		go func() {
 			_exitSignal := make(chan bool)
 			StartNode(s.ControlAddress, _exitSignal)
-			<-_exitSignal
-			print("node exiting\n")
+			for{
+				time.Sleep(20 * time.Second)
+				select{
+				case <-_exitSignal:
+					_exitSignal <- true
+					print("node exiting\n")
+					return
+				}
+			}
 		}()
 	}
 	return nil
@@ -30,7 +37,7 @@ func (s *SpawnerState) Exit(count int, rtv *int) error {
 
 func (s *SpawnerState) Start() {
 	myIP := GetOutboundAddr()
-	portString := ListenRPC(":0", s)
+	portString := ListenRPC(":0", s, s.ExitSignal)
 	myPort := portString[strings.LastIndex(portString, ":"):]
 	addr := myIP + myPort
 	// report to controller

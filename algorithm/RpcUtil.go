@@ -67,7 +67,7 @@ func (c *gobServerCodec) Close() error {
 	return c.rwc.Close()
 }
 
-func ListenRPC(portAddr string, worker interface{}) string {
+func ListenRPC(portAddr string, worker interface{}, exitSignal chan bool) string {
 	handler := rpc.NewServer()
 	handler.Register(worker)
 	l, e := net.Listen("tcp", portAddr)
@@ -76,6 +76,12 @@ func ListenRPC(portAddr string, worker interface{}) string {
 	}
 	go func() {
 		for {
+			select{
+			case <-exitSignal:
+				exitSignal <- true
+				return
+			default:
+			}
 			conn, err := l.Accept()
 			if err != nil {
 				log.Print("Error: accept rpc connection", err.Error())

@@ -122,6 +122,40 @@ func (p *ProtocolState) PingReport(size int, rtv *int) error {
 	return nil
 }
 
+func (p *ProtocolState) localMonitor(recur int) bool {
+	if recur == 0{
+		return false
+	}
+	report := p.pingReport(2000)
+	failure := 0
+	for i, _ := range report{
+		if report[i] <= 0 || report[i] >= int(p.roundDuration){
+			failure++
+		}
+	}
+	if failure > (len(p.initView) / 2 + 3){
+		time.Sleep(100 * time.Millisecond)
+		return p.localMonitor(recur - 1)
+	}else{
+		return true
+	}
+}
+
+func (p *ProtocolState) peerMonitor(){
+	newPeerList := make([]message.Identity, 0)
+	for _, peer := range p.initView{
+		_, err := net.DialTimeout("tcp", peer.Address, time.Second * 2)
+		if err == nil{
+			newPeerList = append(newPeerList, peer)
+		}else{
+			fmt.Printf("dropping peer %s\n", peer.Address)
+		}
+	}
+	p.lock.Lock()
+	p.initView = newPeerList
+	p.lock.Unlock()
+}
+
 func (p *ProtocolState) BlackHole(msg []byte, rtv *int) error {
 	// this is a blackhole function for measuring ping value
 	for i, _ := range msg {
@@ -216,7 +250,7 @@ func (p *ProtocolState) GetReady() {
 
 	// setup RPC server
 	myIP := GetOutboundAddr()
-	portString := ListenRPC(":0", p)
+	portString := ListenRPC(":0", p, p.ExitSignal)
 	myPort := portString[strings.LastIndex(portString, ":"):]
 
 	p.MyId = message.Identity{myIP + myPort, x509.MarshalPKCS1PublicKey(&p.privateKey.PublicKey)}
@@ -224,6 +258,24 @@ func (p *ProtocolState) GetReady() {
 	// report to controller
 	RpcCall(p.ControlAddress, "ControllerState.Register", p.MyId, nil)
 	fmt.Printf("Node ready to receive instructions, Address: %s\n", p.MyId.Address)
+
+	go func(){
+		for{
+			time.Sleep(10 * time.Second)
+			select{
+			case <-p.ExitSignal:
+				p.ExitSignal <- true
+				return
+			default:
+			}
+			p.peerMonitor()
+			if p.localMonitor(p.l) == false{
+				fmt.Printf("%s: Terminating due to violation of network condition.\n", p.MyId.Address)
+				p.ExitSignal <- true
+				return
+			}
+		}
+	}()
 
 }
 
@@ -377,6 +429,13 @@ func (p *ProtocolState) viewReconciliation() {
 	repetity := int(6.0*math.Log(2/p.delta) + 1)
 	// repetity /= 32
 	for i := 0; i < repetity; i++ {
+		select{
+		case <-p.ExitSignal:
+			p.ExitSignal <- true
+			return
+		default:
+
+		}
 		leader := DoElection(p, 1)
 		scores := Sample(p)
 		if bytes.Equal(leader.Public_key, p.MyId.Public_key) {
