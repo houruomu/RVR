@@ -51,6 +51,8 @@ type ProtocolState struct {
 	LargestMsgSize int
 	MsgReceived    int
 	PingEstimate   float64 // use filter to estimate ping
+	FailToSend     int
+	ExpiredMsg     int
 }
 
 type ProtocolRPCSetupParams struct {
@@ -102,7 +104,7 @@ func (p *ProtocolState) testPing(size int, addr string) int {
 
 func (p *ProtocolState) pingReport(size int) PingValueReport {
 	report := make(PingValueReport, len(p.initView))
-	for i, _ := range report {
+	for i, _ := range p.initView {
 		report[i] = -1
 		go func(i int) {
 			report[i] = p.testPing(size, p.initView[i].Address)
@@ -134,6 +136,9 @@ func (p *ProtocolState) SendInMsg(msg message.Message, rtv *int) error {
 	p.lock.RLock()
 	if (msg.Round < p.Round-p.offset) {
 		p.lock.RUnlock()
+		p.lock.Lock()
+		p.ExpiredMsg++
+		p.lock.Unlock()
 		return errors.New("Trying to enroll an expired msg")
 	}
 	p.lock.RUnlock()
@@ -310,14 +315,21 @@ func (p *ProtocolState) addToInitView(id message.Identity) {
 
 func (p *ProtocolState) sendMsgToPeerAsync(m message.Message, addr string) {
 	go func() {
-		RpcCall(addr, "ProtocolState.SendInMsg", m, nil)
-
+		err := RpcCall(addr, "ProtocolState.SendInMsg", m, nil)
 		// measurement
-		p.MsgCount++
-		size := int(m.Size())
-		p.ByteCount += size
-		if p.LargestMsgSize < size {
-			p.LargestMsgSize = size
+		if err != nil{
+			p.lock.Lock()
+			p.FailToSend++
+			p.lock.Unlock()
+		}else{
+			p.lock.Lock()
+			p.MsgCount++
+			size := int(m.Size())
+			p.ByteCount += size
+			if p.LargestMsgSize < size {
+				p.LargestMsgSize = size
+			}
+			p.lock.Unlock()
 		}
 	}()
 }

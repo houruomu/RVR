@@ -232,9 +232,9 @@ func Sample(p *ProtocolState) map[uint64]float64{
 	}
 	p.inQueue = bufferQueue
 	p.lock.Unlock()
-
-	if float64(sampleCount) <= (1-4*p.g)/(1+p.f)*float64(len(p.initView)){
-		fmt.Printf("Sample Failed on Round: %d.\n", p.Round)
+	sampleTarget := (1-4*p.g)/(1+p.f)*float64(len(p.initView))
+	if float64(sampleCount) < sampleTarget{
+		fmt.Printf("Sample Failed on Round: %d due to not enough Samples, target: %f, received: %d.\n", p.Round, sampleTarget, sampleCount)
 		return nil
 	}else{
 		for i, _ := range score{

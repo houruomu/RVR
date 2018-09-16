@@ -10,6 +10,7 @@ import (
 	"net/rpc"
 	"os"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -34,10 +35,12 @@ type ControllerState struct {
 	Address       string
 	ServerList    []string
 	NetworkMetric []PingValueReport
+	lock          sync.RWMutex
 }
 
 func (c *ControllerState) checkConnection() {
 	connectedPeers := make([]message.Identity, 0)
+	c.lock.RLock()
 	for i, _ := range c.PeerList {
 		err := RpcCall(c.PeerList[i].Address, "ProtocolState.BlackHole", make([]byte, 0), nil)
 		if err != nil {
@@ -46,9 +49,12 @@ func (c *ControllerState) checkConnection() {
 		}
 		connectedPeers = append(connectedPeers, c.PeerList[i])
 	}
+	c.lock.RUnlock()
+	c.lock.Lock()
 	c.PeerList = connectedPeers
-
+	c.lock.Unlock()
 	connectedServers := make([]string, 0)
+	c.lock.RLock()
 	for i, _ := range c.ServerList {
 		err := RpcCall(c.ServerList[i], "SpawnerState.BlackHole", make([]byte, 0), nil)
 		if err != nil {
@@ -57,7 +63,10 @@ func (c *ControllerState) checkConnection() {
 		}
 		connectedServers = append(connectedServers, c.ServerList[i])
 	}
+	c.lock.RUnlock()
+	c.lock.Lock()
 	c.ServerList = connectedServers
+	c.lock.Unlock()
 }
 
 func (c *ControllerState) spawnEvenly(count int) {
@@ -121,13 +130,15 @@ func (c *ControllerState) SetupProtocol(ph1 int, ph2 *int) error {
 }
 
 func (c *ControllerState) killNode(addr string) {
-	RpcCall(addr, "ProtocolState.Exit", c.SetupParams, nil)
+	RpcCall(addr, "ProtocolState.Exit", 1, nil)
 }
 
 func (c *ControllerState) KillNodes(ph1 int, ph2 *int) error {
+	c.lock.RLock()
 	for i, _ := range c.PeerList {
 		c.killNode(c.PeerList[i].Address)
 	}
+	c.lock.RUnlock()
 	return nil
 }
 
@@ -140,6 +151,7 @@ func (c *ControllerState) KillServers(ph1 int, ph2 *int) error {
 
 func (c *ControllerState) StartProtocol(ph1 int, ph2 *int) error {
 	callList := make([]*rpc.Call, len(c.PeerList))
+	c.lock.RLock()
 	for i, _ := range c.PeerList {
 		client, err := rpc.Dial("tcp", c.PeerList[i].Address)
 		if err != nil {
@@ -150,7 +162,7 @@ func (c *ControllerState) StartProtocol(ph1 int, ph2 *int) error {
 		callList[i] = client.Go("ProtocolState.Start", 1, nil, nil)
 	}
 	time.Sleep(time.Duration(c.SetupParams.Offset+1) * c.SetupParams.RoundDuration)
-
+	c.lock.RUnlock()
 	startedPeers := make([]message.Identity, 0)
 	for i, call := range callList {
 		select {
@@ -160,7 +172,9 @@ func (c *ControllerState) StartProtocol(ph1 int, ph2 *int) error {
 			c.killNode(c.PeerList[i].Address)
 		}
 	}
+	c.lock.Lock()
 	c.PeerList = startedPeers
+	c.lock.Unlock()
 	return nil
 }
 
@@ -177,9 +191,11 @@ func (c *ControllerState) AcceptReport(report PingValueReport, ph2 *int) error {
 
 func (c *ControllerState) measure() {
 	c.NetworkMetric = make([]PingValueReport, 0)
+	c.lock.RLock()
 	for i, _ := range c.PeerList {
 		go RpcCall(c.PeerList[i].Address, "ProtocolState.PingReport", 2000, nil)
 	}
+	c.lock.RUnlock()
 
 	time.Sleep(6 * c.SetupParams.RoundDuration)
 
@@ -191,7 +207,7 @@ func (c *ControllerState) measure() {
 	totalDelay := float64(0)
 	for i, _ := range c.NetworkMetric {
 		for _, delay := range c.NetworkMetric[i] {
-			if delay == -1 {
+			if delay <= 0 {
 				failCount++
 			} else {
 				connectionCount++
@@ -199,11 +215,17 @@ func (c *ControllerState) measure() {
 			}
 		}
 	}
+	var avgDelay float64
+	if connectionCount == 0{
+		avgDelay = -1
+	}else{
+		avgDelay = totalDelay/float64(connectionCount)
+	}
 	fmt.Printf("Out of %d peers, %d replied, with %d failed measures, the average delay is %f\n",
 		peerCount,
 		reportCount,
 		failCount,
-		totalDelay/float64(connectionCount))
+		avgDelay)
 }
 
 func (c *ControllerState) report() string {
@@ -336,6 +358,6 @@ func (c *ControllerState) batchTest() {
 }
 
 func StartServer(exitSignal chan bool) {
-	c := ControllerState{exitSignal, DefaultSetupParams, make([]message.Identity, 0), "", make([]string, 0), make([]PingValueReport, 0)}
+	c := ControllerState{exitSignal, DefaultSetupParams, make([]message.Identity, 0), "", make([]string, 0), make([]PingValueReport, 0), sync.RWMutex{}}
 	go c.StartListen()
 }
