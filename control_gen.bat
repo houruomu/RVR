@@ -94,7 +94,7 @@ plink.exe -ssh houruomu@xcnc35.comp.nus.edu.sg -pw ***REMOVED*** -m command.txt 
 plink.exe -ssh houruomu@xcnc36.comp.nus.edu.sg -pw ***REMOVED*** -m command.txt > output.txt
 plink.exe -ssh houruomu@xcnc37.comp.nus.edu.sg -pw ***REMOVED*** -m command.txt > output.txt
 plink.exe -ssh houruomu@xcnc38.comp.nus.edu.sg -pw ***REMOVED*** -m command.txt > output.txt
-plink.exe -ssh houruomu@xcnc39.comp.nus.edu.sg -pw ***REMOVED*** -m command.txt > output.txt
+REM plink.exe -ssh houruomu@xcnc39.comp.nus.edu.sg -pw ***REMOVED*** -m command.txt > output.txt
 plink.exe -ssh houruomu@xcnc40.comp.nus.edu.sg -pw ***REMOVED*** -m command.txt > output.txt
 plink.exe -ssh houruomu@xcnc41.comp.nus.edu.sg -pw ***REMOVED*** -m command.txt > output.txt
 plink.exe -ssh houruomu@xcnc42.comp.nus.edu.sg -pw ***REMOVED*** -m command.txt > output.txt
@@ -102,7 +102,7 @@ plink.exe -ssh houruomu@xcnc43.comp.nus.edu.sg -pw ***REMOVED*** -m command.txt 
 plink.exe -ssh houruomu@xcnc44.comp.nus.edu.sg -pw ***REMOVED*** -m command.txt > output.txt
 plink.exe -ssh houruomu@xcnc45.comp.nus.edu.sg -pw ***REMOVED*** -m command.txt > output.txt
 plink.exe -ssh houruomu@xcnc46.comp.nus.edu.sg -pw ***REMOVED*** -m command.txt > output.txt
-plink.exe -ssh houruomu@xcnc47.comp.nus.edu.sg -pw ***REMOVED*** -m command.txt > output.txt
+REM plink.exe -ssh houruomu@xcnc47.comp.nus.edu.sg -pw ***REMOVED*** -m command.txt > output.txt
 plink.exe -ssh houruomu@xcnc48.comp.nus.edu.sg -pw ***REMOVED*** -m command.txt > output.txt
 plink.exe -ssh houruomu@xcnc49.comp.nus.edu.sg -pw ***REMOVED*** -m command.txt > output.txt
 REM plink.exe -ssh houruomu@xcnd0.comp.nus.edu.sg -pw ***REMOVED*** -m command.txt > output.txt

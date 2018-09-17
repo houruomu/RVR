@@ -167,8 +167,9 @@ func (c *ControllerState) StartProtocol(ph1 int, ph2 *int) error {
 		defer client.Close()
 		callList[i] = client.Go("ProtocolState.Start", 1, nil, nil)
 	}
-	time.Sleep(time.Duration(c.SetupParams.Offset+1) * c.SetupParams.RoundDuration)
 	c.lock.RUnlock()
+
+	time.Sleep(time.Duration(c.SetupParams.Offset) * c.SetupParams.RoundDuration)
 	startedPeers := make([]message.Identity, 0)
 	for i, call := range callList {
 		select {
@@ -241,6 +242,7 @@ func (c *ControllerState) report() string {
 		}
 	}()
 	state := make([]ProtocolState, 0)
+	c.lock.RLock()
 	for i, _ := range c.PeerList {
 		newState := ProtocolState{}
 		err := RpcCall(c.PeerList[i].Address, "ProtocolState.RetrieveState", 1, &newState)
@@ -250,6 +252,7 @@ func (c *ControllerState) report() string {
 		}
 		state = append(state, newState)
 	}
+	c.lock.RUnlock()
 	analysis := Data{state, c.SetupParams}
 	return analysis.Report()
 }
@@ -328,6 +331,9 @@ func (c *ControllerState) autoTest(size int, params ProtocolRPCSetupParams) {
 	for {
 		time.Sleep(10 * time.Second)
 		report = c.report()
+		if report == ""{
+			continue
+		}
 		if report[0] == 't' || time.Now().Sub(startTime) > 2000*time.Second {
 			// finished
 			break

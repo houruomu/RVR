@@ -21,20 +21,26 @@ func (data *Data) checkConsensus() bool {
 	for i, _ := range data.states[0].View {
 		viewHashMap[data.states[0].View[i]] = true
 	}
+	var lastWrongState *ProtocolState
 	wrong := 0
 	for i, _ := range data.states {
 		if len(data.states[i].View) != len(data.states[0].View) {
+			lastWrongState = &data.states[i]
 			wrong++
+			continue
 		}
 		for j, _ := range data.states[i].View {
 			_, ok := viewHashMap[data.states[i].View[j]]
 			if !ok {
+				lastWrongState = &data.states[i]
 				wrong++
+				break
 			}
 		}
 	}
 	if(wrong > 0){
-		fmt.Printf("Not consensus count: %d.\n", wrong)
+		fmt.Printf("Not consensus count: %d\n", wrong)
+		print(lastWrongState.String())
 		return false
 	}else{
 		return true
