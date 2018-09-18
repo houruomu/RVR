@@ -43,14 +43,14 @@ func (c *gobServerCodec) ReadRequestBody(body interface{}) error {
 func (c *gobServerCodec) WriteResponse(r *rpc.Response, body interface{}) (err error) {
 	if err = TimeoutCoder(c.enc.Encode, r, "server write response"); err != nil {
 		if c.encBuf.Flush() == nil {
-			log.Println("rpc: gob error encoding response:", err)
+			fmt.Printf("rpc: gob error encoding response: %s\n", err)
 			c.Close()
 		}
 		return
 	}
 	if err = TimeoutCoder(c.enc.Encode, body, "server write response body"); err != nil {
 		if c.encBuf.Flush() == nil {
-			log.Println("rpc: gob error encoding body:", err)
+			fmt.Printf("rpc: gob error encoding body: %s\n", err)
 			c.Close()
 		}
 		return
@@ -84,7 +84,7 @@ func ListenRPC(portAddr string, worker interface{}, exitSignal chan bool) string
 			}
 			conn, err := l.Accept()
 			if err != nil {
-				log.Print("Error: accept rpc connection", err.Error())
+				fmt.Printf("Error: accept rpc connection %s", err.Error())
 				continue
 			}
 			go func(conn net.Conn) {
@@ -98,7 +98,7 @@ func ListenRPC(portAddr string, worker interface{}, exitSignal chan bool) string
 				err = handler.ServeRequest(srv)
 				if err != nil {
 					if(err.Error() != "EOF"){
-						log.Print("Error: server rpc request", err.Error())
+						fmt.Printf("Error: server rpc request %s", err.Error())
 					}
 				}
 				srv.Close()
@@ -138,6 +138,12 @@ func (c *gobClientCodec) Close() error {
 }
 
 func RpcCall(srv string, rpcname string, args interface{}, reply interface{}) error {
+	defer func() {
+		if r := recover(); r != nil {
+			// fail gracefully
+			fmt.Printf("RPC Call failed, panic resolved. %s\n", r)
+		}
+	}()
 	conn, err := net.DialTimeout("tcp", srv, time.Second * 2)
 	if err != nil {
 		return fmt.Errorf("ConnectError: %s", err.Error())

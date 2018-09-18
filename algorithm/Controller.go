@@ -4,7 +4,6 @@ import (
 	"RVR/message"
 	"bufio"
 	"fmt"
-	"log"
 	"math"
 	"math/rand"
 	"net/rpc"
@@ -44,7 +43,7 @@ func (c *ControllerState) checkConnection() {
 	for i, _ := range c.PeerList {
 		err := RpcCall(c.PeerList[i].Address, "ProtocolState.BlackHole", make([]byte, 0), nil)
 		if err != nil {
-			log.Printf("Peer %s disconnected.\n", c.PeerList[i].Address)
+			fmt.Printf("Peer %s disconnected.\n", c.PeerList[i].Address)
 			continue
 		}
 		connectedPeers = append(connectedPeers, c.PeerList[i])
@@ -58,7 +57,7 @@ func (c *ControllerState) checkConnection() {
 	for i, _ := range c.ServerList {
 		err := RpcCall(c.ServerList[i], "SpawnerState.BlackHole", make([]byte, 0), nil)
 		if err != nil {
-			log.Printf("Server %s disconnected.\n", c.ServerList[i])
+			fmt.Printf("Server %s disconnected.\n", c.ServerList[i])
 			continue
 		}
 		connectedServers = append(connectedServers, c.ServerList[i])
@@ -71,6 +70,7 @@ func (c *ControllerState) checkConnection() {
 
 func (c *ControllerState) spawnEvenly(count int) {
 	c.checkConnection()
+	c.lock.RLock()
 	for i, _ := range c.ServerList {
 		numInstance := count / len(c.ServerList)
 		if i < count%len(c.ServerList) {
@@ -78,6 +78,16 @@ func (c *ControllerState) spawnEvenly(count int) {
 		}
 		c.Spawn(c.ServerList[i], numInstance)
 	}
+	c.lock.RUnlock()
+	// shuffle the list //https://stackoverflow.com/questions/12264789/shuffle-array-in-go
+	c.lock.Lock()
+	newServerList := make([]string, len(c.ServerList))
+	perm := rand.Perm(len(c.ServerList))
+	for i, v := range perm {
+		newServerList[v] = c.ServerList[i]
+	}
+	c.ServerList = newServerList
+	c.lock.Unlock()
 }
 
 func (c *ControllerState) Spawn(addr string, count int) {
@@ -142,10 +152,10 @@ func (c *ControllerState) killNode(addr string) {
 
 func (c *ControllerState) KillNodes(ph1 int, ph2 *int) error {
 	c.lock.RLock()
+	defer c.lock.RUnlock()
 	for i, _ := range c.PeerList {
 		c.killNode(c.PeerList[i].Address)
 	}
-	c.lock.RUnlock()
 	return nil
 }
 
@@ -162,7 +172,7 @@ func (c *ControllerState) StartProtocol(ph1 int, ph2 *int) error {
 	for i, _ := range c.PeerList {
 		client, err := rpc.Dial("tcp", c.PeerList[i].Address)
 		if err != nil {
-			log.Print("Starting Protocol:", err.Error())
+			fmt.Printf("Starting Protocol:", err.Error())
 			return nil
 		}
 		defer client.Close()
@@ -248,7 +258,7 @@ func (c *ControllerState) report() string {
 		newState := ProtocolState{}
 		err := RpcCall(c.PeerList[i].Address, "ProtocolState.RetrieveState", 1, &newState)
 		if err != nil {
-			log.Print("Check State RPC:", err.Error())
+			fmt.Printf("Check State error RPC:", err.Error())
 			continue
 		}
 		state = append(state, newState)

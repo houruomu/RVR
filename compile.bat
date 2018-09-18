@@ -1,7 +1,7 @@
 env GOOS=linux GOARCH=amd64 go build
 env GOOS=windows GOARCH=amd64 go build
 git add *
-git commit -m "make controller non-blocking"
+git commit -m "change logs to printfs and recover panic in report"
 git push
 
 exit
