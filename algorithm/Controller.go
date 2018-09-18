@@ -366,8 +366,8 @@ func (c *ControllerState) autoTest(size int, params ProtocolRPCSetupParams) {
 func (c *ControllerState) batchTest() {
 	sizeList := []int{160, 320}
 	durationList := []int32{600}
-	deltaList := []float64{0.01, 0.005, 0.001}
-	fList := []float64{0.01, 0.02, 0.03}
+	deltaList := []float64{0.005, 0.01, 0.001}
+	fList := []float64{0.03, 0.01, 0.02}
 	gList := []float64{0.005, 0.01}
 
 	for _, size := range sizeList {

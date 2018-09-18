@@ -104,12 +104,14 @@ func (p *ProtocolState) testPing(size int, addr string) int {
 
 func (p *ProtocolState) pingReport(size int) PingValueReport {
 	report := make(PingValueReport, len(p.initView))
+	p.lock.RLock()
 	for i, _ := range p.initView {
 		report[i] = -1
 		go func(i int) {
 			report[i] = p.testPing(size, p.initView[i].Address)
 		}(i)
 	}
+	p.lock.RUnlock()
 	time.Sleep(2 * p.roundDuration)
 	return report
 }
@@ -143,8 +145,9 @@ func (p *ProtocolState) localMonitor(recur int) bool {
 
 func (p *ProtocolState) peerMonitor(){
 	newPeerList := make([]message.Identity, 0)
+	// no need lock since we are dealing with values only
 	for _, peer := range p.initView{
-		_, err := net.DialTimeout("tcp", peer.Address, time.Second * 2)
+		err := RpcCall(peer.Address, "ProtocolState.BlackHole", make([]byte, 1), nil)
 		if err == nil{
 			newPeerList = append(newPeerList, peer)
 		}else{

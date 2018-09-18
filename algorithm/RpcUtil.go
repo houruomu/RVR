@@ -137,11 +137,12 @@ func (c *gobClientCodec) Close() error {
 	return c.rwc.Close()
 }
 
-func RpcCall(srv string, rpcname string, args interface{}, reply interface{}) error {
+func RpcCall(srv string, rpcname string, args interface{}, reply interface{}) (ret error) {
 	defer func() {
 		if r := recover(); r != nil {
 			// fail gracefully
 			fmt.Printf("RPC Call failed, panic resolved. %s\n", r)
+			ret = fmt.Errorf("%s", r)
 		}
 	}()
 	conn, err := net.DialTimeout("tcp", srv, time.Second * 2)

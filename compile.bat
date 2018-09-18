@@ -1,7 +1,7 @@
 env GOOS=linux GOARCH=amd64 go build
 env GOOS=windows GOARCH=amd64 go build
 git add *
-git commit -m "add mutex to measure and register"
+git commit -m "Version 0.2.11: hope to fix some bugs"
 git push
 
 exit
