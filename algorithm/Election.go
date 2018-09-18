@@ -312,6 +312,9 @@ func (state *ElectionState) DoElection() message.Identity {
 }
 
 func evalHashWithDifficulty(header []byte, data []byte, difficulty float64) bool {
+	if header == nil || data == nil{
+		return false
+	}
 	digest := make([]byte, 32)
 	hash := sha3.NewShake256()
 	hash.Write(header)

@@ -1,6 +1,7 @@
-screen -d -m killall -u houruomu
-exit
+# screen -d -m killall -u houruomu
+# exit
 
-wget -O RVR https://github.com/houruomu/RVR/raw/master/RVR
-chmod +x RVR
+# wget -O RVR https://github.com/houruomu/RVR/raw/master/RVR
+# chmod +x RVR
 screen -d -m ./RVR --mode=spawner --server="192.168.51.8:9696"
+exit

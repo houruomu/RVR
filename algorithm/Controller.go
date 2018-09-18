@@ -101,7 +101,8 @@ func (c *ControllerState) setupRandomizedView() error {
 	for i, _ := range c.PeerList {
 		view := make([]uint64, 0)
 		for j, _ := range c.PeerList {
-			if (rand.Float32() < 0.645) {
+			if (rand.Float32() < 0.4) {
+				// 0.4 is the sample probability for leader's proposal
 				view = append(view, c.PeerList[j].GetUUID())
 			}
 		}
@@ -287,17 +288,21 @@ func (c *ControllerState) StartListen() {
 			case "start":
 				c.StartProtocol(1, nil)
 			case "state":
-				// pick a random node to retrieve state
-				nodeAddr := c.PeerList[rand.Int()%len(c.PeerList)].Address
-				print(c.checkState(nodeAddr))
+				go func(){
+					// pick a random node to retrieve state
+					nodeAddr := c.PeerList[rand.Int()%len(c.PeerList)].Address
+					print(c.checkState(nodeAddr))
+				}()
 			case "measure":
-				c.measure()
+				go c.measure()
 			case "report":
 				// pick a random node to retrieve state
-				print(c.report())
+				go func(){print(c.report())}()
 			case "reset":
-				c.KillNodes(1, nil)
-				c.PeerList = make([]message.Identity, 0)
+				go func(){
+					c.KillNodes(1, nil)
+					c.PeerList = make([]message.Identity, 0)
+				}()
 			case "spawn":
 				serverAddr := c.ServerList[rand.Int()%len(c.ServerList)]
 				c.Spawn(serverAddr, 1)
@@ -310,7 +315,6 @@ func (c *ControllerState) StartListen() {
 			}
 		}
 	}
-
 }
 
 func (c *ControllerState) autoTest(size int, params ProtocolRPCSetupParams) {
