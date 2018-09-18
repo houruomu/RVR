@@ -95,13 +95,17 @@ func (c *ControllerState) Spawn(addr string, count int) {
 }
 
 func (c *ControllerState) RegisterServer(addr string, rtv *int) error {
+	c.lock.Lock()
 	c.ServerList = append(c.ServerList, addr)
+	c.lock.Unlock()
 	fmt.Printf("New Server registered at controller: %s\n", addr)
 	return nil
 }
 
 func (c *ControllerState) Register(id message.Identity, rtv *int) error {
+	c.lock.Lock()
 	c.PeerList = append(c.PeerList, id)
+	c.lock.Unlock()
 	fmt.Printf("New Peer registered at controller: %s\n", id.Address)
 	return nil
 }
@@ -203,7 +207,9 @@ func (c *ControllerState) checkState(address string) string {
 }
 
 func (c *ControllerState) AcceptReport(report PingValueReport, ph2 *int) error {
+	c.lock.Lock()
 	c.NetworkMetric = append(c.NetworkMetric, report)
+	c.lock.Unlock()
 	return nil
 }
 
