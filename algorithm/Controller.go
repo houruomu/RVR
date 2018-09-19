@@ -313,7 +313,10 @@ func (c *ControllerState) StartListen() {
 				go c.measure()
 			case "report":
 				// pick a random node to retrieve state
-				go func(){print(c.report())}()
+				go func(){
+					report, _, _, _ := c.report()
+					fmt.Printf("%s\n", report)
+				}()
 			case "reset":
 				go func(){
 					c.KillNodes(1, nil)
