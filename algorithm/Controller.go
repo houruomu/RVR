@@ -280,7 +280,7 @@ func (c *ControllerState) report() (report string, fin bool, cons bool, round in
 	c.lock.RLock()
 	c.lockHolder = "report"
 	for i, _ := range c.PeerList {
-		go func (){
+		go func (i int){
 			newState := ProtocolState{}
 			err := RpcCall(c.PeerList[i].Address, "ProtocolState.RetrieveState", 1, &newState, c.SetupParams.RoundDuration)
 			if err != nil {
@@ -289,7 +289,7 @@ func (c *ControllerState) report() (report string, fin bool, cons bool, round in
 			c.lock.Lock()
 			defer c.lock.Unlock()
 			state = append(state, newState)
-		}()
+		}(i)
 	}
 	c.lockHolder = ""
 	c.lock.RUnlock()
