@@ -132,16 +132,14 @@ func (c *ControllerState) SetupProtocol(ph1 int, ph2 *int) error {
 	c.SetupParams.X = int(math.Ceil(math.Log(nEstimate)/math.Log(math.Log(nEstimate))+4.0))*c.SetupParams.L + c.SetupParams.Offset
 
 	connectedPeers := make([]message.Identity, 0)
-	c.lock.RLock()
-	for i, _ := range c.PeerList {
-		err := RpcCall(c.PeerList[i].Address, "ProtocolState.Setup", c.SetupParams, nil)
+	for _, peer := range c.PeerList {
+		err := RpcCall(peer.Address, "ProtocolState.Setup", c.SetupParams, nil)
 		if err != nil {
-			RpcCall(c.PeerList[i].Address, "ProtocolState.Exit", c.SetupParams, nil)
+			RpcCall(peer.Address, "ProtocolState.Exit", c.SetupParams, nil)
 		} else {
-			connectedPeers = append(connectedPeers, c.PeerList[i])
+			connectedPeers = append(connectedPeers, peer)
 		}
 	}
-	c.lock.RUnlock()
 	c.lock.Lock()
 	c.PeerList = connectedPeers
 	c.lock.Unlock()
@@ -339,16 +337,15 @@ func (c *ControllerState) StartListen() {
 func (c *ControllerState) autoTest(size int, params ProtocolRPCSetupParams) {
 	c.KillNodes(1, nil)
 	c.PeerList = make([]message.Identity, 0)
-	for len(c.PeerList) < size {
-		c.spawnEvenly(size - len(c.PeerList))
-		time.Sleep(10 * time.Second)
-	}
+	c.spawnEvenly(size)
 
 	c.SetupParams = params
+	fmt.Printf("Auto test: setting up protocol\n", )
 	c.SetupProtocol(1, nil)
+	fmt.Printf("Auto test: starting protocol\n", )
 	c.StartProtocol(1, nil)
 
-	print("Auto-test starting!\n")
+	fmt.Printf("Auto-test started!\n")
 	var report string
 	consensusReached := false
 	consensusTime := 3600 * time.Second
@@ -368,8 +365,8 @@ func (c *ControllerState) autoTest(size int, params ProtocolRPCSetupParams) {
 			break
 		}
 	}
-	print("Auto-test completed!\n")
-	fmt.Printf("%d, %d, %s, %d, %d", len(c.PeerList), len(c.ServerList), report, consensusTime, consensusRound)
+	fmt.Printf("Auto-test completed!\n")
+	fmt.Printf("%d, %d, %s, %d, %d\n", len(c.PeerList), len(c.ServerList), report, consensusTime, consensusRound)
 }
 
 func (c *ControllerState) batchTest() {

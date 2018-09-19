@@ -263,23 +263,7 @@ func (p *ProtocolState) GetReady() {
 	RpcCall(p.ControlAddress, "ControllerState.Register", p.MyId, nil)
 	fmt.Printf("Node ready to receive instructions, Address: %s\n", p.MyId.Address)
 
-	go func(){
-		for{
-			time.Sleep(10 * time.Second)
-			select{
-			case <-p.ExitSignal:
-				p.ExitSignal <- true
-				return
-			default:
-			}
-			p.peerMonitor()
-			if p.localMonitor(p.l) == false{
-				fmt.Printf("%s: Terminating due to violation of network condition.\n", p.MyId.Address)
-				p.ExitSignal <- true
-				return
-			}
-		}
-	}()
+
 
 }
 
@@ -306,6 +290,7 @@ func (p *ProtocolState) Setup(state ProtocolRPCSetupParams, rtv *int) error {
 	}
 
 	fmt.Printf("Node setup done, initview length: %d\n", len(p.initView))
+
 	return nil
 }
 
@@ -326,6 +311,23 @@ func (p *ProtocolState) Start(command int, rtv *int) error {
 				p.Finished = true
 				p.FinishTime = time.Now()
 				p.Exit(1, nil)
+			}
+		}()
+		go func(){
+			for{
+				time.Sleep(10 * time.Second)
+				select{
+				case <-p.ExitSignal:
+					p.ExitSignal <- true
+					return
+				default:
+				}
+				p.peerMonitor()
+				if p.localMonitor(p.l) == false{
+					fmt.Printf("%s: Terminating due to violation of network condition.\n", p.MyId.Address)
+					p.ExitSignal <- true
+					return
+				}
 			}
 		}()
 		p.viewReconciliation()
@@ -458,7 +460,7 @@ func (p *ProtocolState) viewReconciliation() {
 		for _, uuid := range proposal {
 			proposalMap[uuid] = true
 		}
-		if scores != nil && proposal != nil {
+		if scores != nil {
 			p.View = make([]uint64, 0)
 			for uuid, score := range scores {
 				if score > 0.65 || (score >= 0.16 && proposalMap[uuid]) {

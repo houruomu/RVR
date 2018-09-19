@@ -108,7 +108,7 @@ func (d *Data) Report() (report string, fin bool, cons bool, round int) {
 	fin = d.checkFinished()
 	cons = d.checkConsensus()
 	round = d.states[0].Round
-	report = fmt.Sprintf("%t, %t, %d, %d, %f, %f, %d, %d, %f, %d, %d, %d, %d, %d, %d, %d\n",
+	report = fmt.Sprintf("%t, %t, %d, %d, %f, %f, %d, %d, %f, %d, %d, %d, %d, %d, %d, %d",
 		fin,
 		cons,
 		d.setupParam.RoundDuration,
