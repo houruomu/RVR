@@ -339,7 +339,7 @@ func (c *ControllerState) autoTest(size int, params ProtocolRPCSetupParams) {
 	c.PeerList = make([]message.Identity, 0)
 	for len(c.PeerList) < size{
 		c.spawnEvenly(size - len(c.PeerList))
-		time.Sleep(10 * c.SetupParams.RoundDuration)
+		time.Sleep(10 * time.Second)
 	}
 
 
@@ -347,6 +347,9 @@ func (c *ControllerState) autoTest(size int, params ProtocolRPCSetupParams) {
 	c.SetupParams = params
 	fmt.Printf("Auto test: setting up protocol\n", )
 	c.SetupProtocol(1, nil)
+
+	time.Sleep(3 * time.Second)
+
 	fmt.Printf("Auto test: starting protocol\n", )
 	c.StartProtocol(1, nil)
 

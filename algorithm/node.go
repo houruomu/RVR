@@ -461,12 +461,28 @@ func (p *ProtocolState) viewReconciliation() {
 			proposalMap[uuid] = true
 		}
 		if scores != nil {
-			p.View = make([]uint64, 0)
-			for uuid, score := range scores {
-				if score > 0.65 || (score >= 0.16 && proposalMap[uuid]) {
-					p.View = append(p.View, uuid)
+			if proposal != nil{
+				p.View = make([]uint64, 0)
+				for uuid, score := range scores {
+					if score > 0.65 || (score >= 0.16 && proposalMap[uuid]) {
+						p.View = append(p.View, uuid)
+					}
 				}
+			}else{
+				newView := make([]uint64, 0)
+				for uuid, score := range scores {
+					if score > 0.65 {
+						newView = append(newView, uuid)
+					}
+				}
+				for _, uuid := range p.View{
+					if scores[uuid] <= 0.65 && scores[uuid] >=0.16{
+						newView = append(newView, uuid)
+					}
+				}
+				p.View = newView
 			}
+
 		}
 	}
 	fmt.Printf("%s finishing RVR protocol, final View length: %d\n", p.MyId.Address, len(p.View))
