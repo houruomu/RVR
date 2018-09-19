@@ -15,13 +15,13 @@ func (s *SpawnerState) Spawn(count int, rtv *int) error {
 	for i := 0; i < count; i++ {
 		go func() {
 			_exitSignal := make(chan bool)
-			StartNode(s.ControlAddress, _exitSignal)
+			node := StartNode(s.ControlAddress, _exitSignal)
 			for{
 				time.Sleep(20 * time.Second)
 				select{
 				case <-_exitSignal:
 					_exitSignal <- true
-					print("node exiting\n")
+					fmt.Printf("%s: node exiting\n", node.MyId.Address)
 					return
 				}
 			}

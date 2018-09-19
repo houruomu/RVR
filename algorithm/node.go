@@ -135,8 +135,9 @@ func (p *ProtocolState) localMonitor(recur int) bool {
 			failure++
 		}
 	}
-	if failure > (len(p.initView) / 2 + 3){
-		time.Sleep(100 * time.Millisecond)
+	if float64(failure) > (float64(len(p.initView)) * p.g + 5){
+		fmt.Printf("%s: bad round, recur = %d, failure count: %d\n", p.MyId.Address, recur, failure)
+		time.Sleep(p.roundDuration)
 		return p.localMonitor(recur - 1)
 	}else{
 		return true
@@ -471,9 +472,10 @@ func (p *ProtocolState) viewReconciliation() {
 	p.FinishTime = time.Now()
 }
 
-func StartNode(controlAddress string, exitSignal chan bool) {
+func StartNode(controlAddress string, exitSignal chan bool) *ProtocolState{
 	p := ProtocolState{}
 	p.ControlAddress = controlAddress
 	p.ExitSignal = exitSignal
 	go p.GetReady()
+	return &p
 }

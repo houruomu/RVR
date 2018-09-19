@@ -75,6 +75,7 @@ func ListenRPC(portAddr string, worker interface{}, exitSignal chan bool) string
 		log.Fatal("Error: listen error:", e)
 	}
 	go func() {
+		defer l.Close()
 		for {
 			select{
 			case <-exitSignal:
@@ -146,6 +147,7 @@ func RpcCall(srv string, rpcname string, args interface{}, reply interface{}) (r
 		}
 	}()
 	conn, err := net.DialTimeout("tcp", srv, time.Second * 2)
+	defer conn.Close()
 	if err != nil {
 		return fmt.Errorf("ConnectError: %s", err.Error())
 	}
