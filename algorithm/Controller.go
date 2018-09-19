@@ -337,9 +337,12 @@ func (c *ControllerState) StartListen() {
 func (c *ControllerState) autoTest(size int, params ProtocolRPCSetupParams) {
 	c.KillNodes(1, nil)
 	c.PeerList = make([]message.Identity, 0)
-	c.spawnEvenly(size)
+	for len(c.PeerList) < size{
+		c.spawnEvenly(size - len(c.PeerList))
+		time.Sleep(10 * c.SetupParams.RoundDuration)
+	}
 
-	time.Sleep(4 * c.SetupParams.RoundDuration)
+
 
 	c.SetupParams = params
 	fmt.Printf("Auto test: setting up protocol\n", )
