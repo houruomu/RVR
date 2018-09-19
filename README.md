@@ -5,7 +5,9 @@ Usage:
 go build  
 ./RVR [--mode=controller|spawner|node] [--server=CONTROLLER_ADDRESS]  
 `
-The controller supports the following commands:  
+
+
+###The controller supports the following commands:  
 batch : Automated batch testing (accroding to the scheme written in algorithm/Controller.batch)  
 state : pick a random node and report its state  
 measure : collect the average ping data across the nodes  
