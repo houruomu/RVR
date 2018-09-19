@@ -21,29 +21,30 @@ import (
 // TODO: For each RPC connection, use persistent connection, if there are too many of them, use a pool
 type ProtocolState struct {
 	// protocol parameters
-	privateKey    *rsa.PrivateKey
-	roundDuration time.Duration
-	offset        int
-	f             float64
-	g             float64
-	l             int
-	x             int // The number of rounds for Gossip to run
-	delta         float64
-	initView      []message.Identity
+	privateKey     *rsa.PrivateKey
+	roundDuration  time.Duration
+	offset         int
+	f              float64
+	g              float64
+	l              int
+	x              int // The number of rounds for Gossip to run
+	delta          float64
+	initView       []message.Identity
+	ControlAddress string
 
 	// protocol state
-	Round          int
-	inQueue        []message.Message
-	View           []uint64
-	lock           sync.RWMutex
-	ticker         <-chan time.Time
-	idToAddrMap    map[uint64]string // use to check whether in initview
-	MyId           message.Identity
-	Finished       bool
-	ExitSignal     chan bool
-	ControlAddress string
-	StartTime      time.Time
-	FinishTime     time.Time
+	Round        int
+	inQueue      []message.Message
+	View         []uint64
+	lock         sync.RWMutex
+	ticker       <-chan time.Time
+	idToAddrMap  map[uint64]string // use to check whether in initview
+	MyId         message.Identity
+	Finished     bool
+	ExitSignal   chan bool
+	StartTime    time.Time
+	FinishTime   time.Time
+	CurrentProto string
 
 	// protocol measurement data
 	MsgCount       int
@@ -125,33 +126,33 @@ func (p *ProtocolState) PingReport(size int, rtv *int) error {
 }
 
 func (p *ProtocolState) localMonitor(recur int) bool {
-	if recur == 0{
+	if recur == 0 {
 		return false
 	}
 	report := p.pingReport(2000)
 	failure := 0
-	for i, _ := range report{
-		if report[i] <= 0 || report[i] >= int(p.roundDuration){
+	for i, _ := range report {
+		if report[i] <= 0 || report[i] >= int(p.roundDuration) {
 			failure++
 		}
 	}
-	if float64(failure) > (float64(len(p.initView)) * p.g + 5){
+	if float64(failure) > (float64(len(p.initView))*p.g + 5) {
 		fmt.Printf("%s: bad round, recur = %d, failure count: %d\n", p.MyId.Address, recur, failure)
 		time.Sleep(p.roundDuration)
 		return p.localMonitor(recur - 1)
-	}else{
+	} else {
 		return true
 	}
 }
 
-func (p *ProtocolState) peerMonitor(){
+func (p *ProtocolState) peerMonitor() {
 	newPeerList := make([]message.Identity, 0)
 	// no need lock since we are dealing with values only
-	for _, peer := range p.initView{
+	for _, peer := range p.initView {
 		err := RpcCall(peer.Address, "ProtocolState.BlackHole", make([]byte, 1), nil)
-		if err == nil{
+		if err == nil {
 			newPeerList = append(newPeerList, peer)
-		}else{
+		} else {
 			fmt.Printf("dropping peer %s\n", peer.Address)
 		}
 	}
@@ -185,9 +186,15 @@ func (p *ProtocolState) SendInMsg(msg message.Message, rtv *int) error {
 		return err
 	}
 	p.lock.Lock()
-	p.inQueue = append(p.inQueue, msg)
-	p.MsgReceived++
-	p.lock.Unlock()
+	defer p.lock.Unlock()
+	if msg.Round > p.Round + p.offset + 1 && p.CurrentProto != "Gossip"{
+		fmt.Printf("%s: unsynchronized, terminating, at round %d, received msg at round %d from %s\n",
+			p.MyId.Address, p.Round, msg.Round, msg.Sender.Address)
+		p.Exit(1, nil)
+	}else{
+		p.inQueue = append(p.inQueue, msg)
+		p.MsgReceived++
+	}
 	return nil
 }
 
@@ -263,8 +270,6 @@ func (p *ProtocolState) GetReady() {
 	RpcCall(p.ControlAddress, "ControllerState.Register", p.MyId, nil)
 	fmt.Printf("Node ready to receive instructions, Address: %s\n", p.MyId.Address)
 
-
-
 }
 
 func (p *ProtocolState) Setup(state ProtocolRPCSetupParams, rtv *int) error {
@@ -313,17 +318,17 @@ func (p *ProtocolState) Start(command int, rtv *int) error {
 				p.Exit(1, nil)
 			}
 		}()
-		go func(){
-			for{
+		go func() {
+			for {
 				time.Sleep(10 * time.Second)
-				select{
+				select {
 				case <-p.ExitSignal:
 					p.ExitSignal <- true
 					return
 				default:
 				}
 				p.peerMonitor()
-				if p.localMonitor(p.l) == false{
+				if p.localMonitor(p.l) == false {
 					fmt.Printf("%s: Terminating due to violation of network condition.\n", p.MyId.Address)
 					p.ExitSignal <- true
 					return
@@ -375,11 +380,11 @@ func (p *ProtocolState) sendMsgToPeerAsync(m message.Message, addr string) {
 	go func() {
 		err := RpcCall(addr, "ProtocolState.SendInMsg", m, nil)
 		// measurement
-		if err != nil{
+		if err != nil {
 			p.lock.Lock()
 			p.FailToSend++
 			p.lock.Unlock()
-		}else{
+		} else {
 			p.lock.Lock()
 			p.MsgCount++
 			size := int(m.Size())
@@ -435,14 +440,27 @@ func (p *ProtocolState) viewReconciliation() {
 	repetity := int(6.0*math.Log(2/p.delta) + 1)
 	// repetity /= 32
 	for i := 0; i < repetity; i++ {
-		select{
+		select {
 		case <-p.ExitSignal:
 			p.ExitSignal <- true
 			return
 		default:
 
 		}
+
+		p.lock.Lock()
+			<-p.ticker
+			p.Round++
+		p.lock.Unlock()
+
+		p.lock.Lock()
+		p.CurrentProto = "Election"
+		p.lock.Unlock()
 		leader := DoElection(p, 1)
+
+		p.lock.Lock()
+		p.CurrentProto = "Sample"
+		p.lock.Unlock()
 		scores := Sample(p)
 		if bytes.Equal(leader.Public_key, p.MyId.Public_key) {
 			if scores != nil {
@@ -454,35 +472,42 @@ func (p *ProtocolState) viewReconciliation() {
 				}
 			}
 		}
+
+		p.lock.Lock()
+		p.CurrentProto = "Gossip"
+		p.lock.Unlock()
 		proposal := Gossip(p, &leader)
+
+		p.lock.Lock()
+		p.CurrentProto = "Compute"
+		p.lock.Unlock()
 		// build a check map
 		proposalMap := make(map[uint64]bool)
 		for _, uuid := range proposal {
 			proposalMap[uuid] = true
 		}
 		if scores != nil {
-			if proposal != nil{
+			if proposal != nil {
 				p.View = make([]uint64, 0)
 				for uuid, score := range scores {
 					if score > 0.65 || (score >= 0.16 && proposalMap[uuid]) {
 						p.View = append(p.View, uuid)
 					}
 				}
-			}else{
+			} else {
 				newView := make([]uint64, 0)
 				for uuid, score := range scores {
 					if score > 0.65 {
 						newView = append(newView, uuid)
 					}
 				}
-				for _, uuid := range p.View{
-					if scores[uuid] <= 0.65 && scores[uuid] >=0.16{
+				for _, uuid := range p.View {
+					if scores[uuid] <= 0.65 && scores[uuid] >= 0.16 {
 						newView = append(newView, uuid)
 					}
 				}
 				p.View = newView
 			}
-
 		}
 	}
 	fmt.Printf("%s finishing RVR protocol, final View length: %d\n", p.MyId.Address, len(p.View))
@@ -490,7 +515,7 @@ func (p *ProtocolState) viewReconciliation() {
 	p.FinishTime = time.Now()
 }
 
-func StartNode(controlAddress string, exitSignal chan bool) *ProtocolState{
+func StartNode(controlAddress string, exitSignal chan bool) *ProtocolState {
 	p := ProtocolState{}
 	p.ControlAddress = controlAddress
 	p.ExitSignal = exitSignal

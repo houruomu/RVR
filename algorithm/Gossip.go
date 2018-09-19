@@ -4,6 +4,8 @@ import (
 	"RVR/message"
 	"bytes"
 	"fmt"
+	"math"
+	"math/rand"
 )
 
 func Gossip(p *ProtocolState, leader *message.Identity) []uint64{
@@ -56,19 +58,19 @@ func Gossip(p *ProtocolState, leader *message.Identity) []uint64{
 			p.inQueue = make([]message.Message, 0)
 			p.lock.Unlock()
 		} else {
-			// deliver to initview
-			for _, id := range p.initView {
-				p.sendMsgToPeerAsync(msg, id.Address)
+			// deliver to 8(1+f)ln|initview| / delta members in initview
+			p.lock.RLock()
+			gossipSize := int(math.Min(float64(len(p.initView)),math.Ceil(8 * (1+p.f) * math.Log(float64(len(p.initView))) / p.delta)))
+			perm := rand.Perm(gossipSize)
+			for _,i := range perm {
+				p.sendMsgToPeerAsync(msg, p.initView[i].Address)
 			}
 		}
 	}
-
-	for i := 0; i < p.x; i++{
-		// notice to facilitate gossip, we only increase the Round at the end
-		p.lock.Lock()
-		p.Round++
-		p.lock.Unlock()
-	}
+	p.lock.Lock()
+	// notice to facilitate gossip, we only increase the Round at the end
+	p.Round += p.x
+	p.lock.Unlock()
 
 	return proposal
 }

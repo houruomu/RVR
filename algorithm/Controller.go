@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"math"
 	"math/rand"
-	"net/rpc"
 	"os"
 	"strings"
 	"sync"
@@ -169,27 +168,21 @@ func (c *ControllerState) KillServers(ph1 int, ph2 *int) error {
 }
 
 func (c *ControllerState) StartProtocol(ph1 int, ph2 *int) error {
-	callList := make([]*rpc.Call, len(c.PeerList))
 	c.lock.RLock()
 	for i, _ := range c.PeerList {
-		client, err := rpc.Dial("tcp", c.PeerList[i].Address)
-		if err != nil {
-			fmt.Printf("Starting Protocol:", err.Error())
-			return nil
-		}
-		defer client.Close()
-		callList[i] = client.Go("ProtocolState.Start", 1, nil, nil)
+		go RpcCall(c.PeerList[i].Address,"ProtocolState.Start", 1, nil)
 	}
 	c.lock.RUnlock()
 
 	time.Sleep(time.Duration(c.SetupParams.Offset) * c.SetupParams.RoundDuration)
 	startedPeers := make([]message.Identity, 0)
-	for i, call := range callList {
-		select {
-		case <-call.Done:
-			startedPeers = append(startedPeers, c.PeerList[i])
-		default:
-			c.killNode(c.PeerList[i].Address)
+	for _, peer := range c.PeerList {
+		state := ProtocolState{}
+		err := RpcCall(peer.Address, "ProtocolState.RetrieveState", 1, &state)
+		if err == nil && state.Round > 1{
+			startedPeers = append(startedPeers, peer)
+		}else{
+			c.killNode(peer.Address)
 		}
 	}
 	c.lock.Lock()
@@ -296,7 +289,7 @@ func (c *ControllerState) StartListen() {
 			case "batch":
 				go c.batchTest()
 			case "auto":
-				go c.autoTest(10, DefaultSetupParams)
+				go c.autoTest(10, DefaultSetupParams, false)
 			case "setup":
 				c.SetupProtocol(1, nil)
 			case "start":
@@ -334,7 +327,7 @@ func (c *ControllerState) StartListen() {
 	}
 }
 
-func (c *ControllerState) autoTest(size int, params ProtocolRPCSetupParams) {
+func (c *ControllerState) autoTest(size int, params ProtocolRPCSetupParams, stopOnceConsensus bool) (consensus bool) {
 	c.KillNodes(1, nil)
 	c.PeerList = make([]message.Identity, 0)
 	for len(c.PeerList) < size{
@@ -359,7 +352,7 @@ func (c *ControllerState) autoTest(size int, params ProtocolRPCSetupParams) {
 	consensusTime := 3600 * time.Second
 	consensusRound := 0
 	startTime := time.Now()
-	for {
+	for !(stopOnceConsensus && consensusReached){
 		time.Sleep(10 * time.Second)
 		_report, fin, cons, round := c.report()
 		report = _report
@@ -375,14 +368,16 @@ func (c *ControllerState) autoTest(size int, params ProtocolRPCSetupParams) {
 	}
 	fmt.Printf("Auto-test completed!\n")
 	fmt.Printf("%d, %d, %s, %d, %d\n", len(c.PeerList), len(c.ServerList), report, consensusTime, consensusRound)
+	return consensusReached
 }
 
 func (c *ControllerState) batchTest() {
 	sizeList := []int{160, 320}
-	durationList := []int32{100, 200, 300, 400}
+	durationList := []int32{100, 200, 400}
 	deltaList := []float64{0.005, 0.01, 0.001}
 	fList := []float64{0.03, 0.01, 0.02}
 	gList := []float64{0.005, 0.01, 0.0025}
+	offsetList := []int{2,4,6,8}
 
 	//for _, size := range sizeList {
 	//	for _, dur := range durationList {
@@ -405,27 +400,32 @@ func (c *ControllerState) batchTest() {
 	for i := 0; i < 5 ;i++{
 		c.SetupParams = DefaultSetupParams
 		for _, size := range sizeList{
-			c.autoTest(size, c.SetupParams)
+			c.autoTest(size, c.SetupParams, true)
 		}
 		c.SetupParams = DefaultSetupParams
 		for _, delta := range deltaList{
 			c.SetupParams.Delta = delta
-			c.autoTest(160, c.SetupParams)
+			c.autoTest(160, c.SetupParams, false)
 		}
 		c.SetupParams = DefaultSetupParams
 		for _, dur := range durationList{
-			c.SetupParams.RoundDuration = time.Duration(dur) * time.Millisecond
-			c.autoTest(160, c.SetupParams)
+			for _, offset := range offsetList{
+				c.SetupParams.Offset = offset
+				c.SetupParams.RoundDuration = time.Duration(dur) * time.Millisecond
+				if c.autoTest(160, c.SetupParams, true){
+					break
+				}
+			}
 		}
 		c.SetupParams = DefaultSetupParams
 		for _, f := range fList{
 			c.SetupParams.F = f
-			c.autoTest(160, c.SetupParams)
+			c.autoTest(160, c.SetupParams, false)
 		}
 		c.SetupParams = DefaultSetupParams
 		for _, g := range gList{
 			c.SetupParams.G = g
-			c.autoTest(160, c.SetupParams)
+			c.autoTest(160, c.SetupParams, false)
 		}
 	}
 }
