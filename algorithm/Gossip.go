@@ -65,6 +65,7 @@ func Gossip(p *ProtocolState, leader *message.Identity) []uint64{
 			for _,i := range perm {
 				p.sendMsgToPeerAsync(msg, p.initView[i].Address)
 			}
+			p.lock.RUnlock()
 		}
 	}
 	p.lock.Lock()

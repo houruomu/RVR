@@ -82,6 +82,22 @@ func (p *ProtocolRPCSetupParams) String() string {
 		p.RoundDuration/time.Millisecond, p.F, p.G, p.L, p.X, p.Delta)
 }
 
+func (p *ProtocolState) String() string {
+	// print the current state summary
+	return fmt.Sprintf("-----------------------\n"+
+		"State of node %X @ %s:\n"+
+		"Round: %d\n"+
+		"Finished: %t\n"+
+		"message sent: %d\n"+
+		"bytes sent: %d\n"+
+		"largest message size: %d\n"+
+		"message received: %d\n"+
+		"view size: %d\n"+
+		"CurrentProto: %s\n" +
+		"-----------------------\n",
+		p.MyId.GetUUID(), p.MyId.Address, p.Round, p.Finished, p.MsgCount, p.ByteCount, p.LargestMsgSize, p.MsgReceived, len(p.View), p.CurrentProto)
+}
+
 func GetOutboundAddr() string {
 	conn, err := net.Dial("udp", "8.8.8.8:80")
 	if err != nil {
@@ -352,20 +368,7 @@ func (p *ProtocolState) RetrieveState(ph int, state *ProtocolState) error {
 	return nil
 }
 
-func (p *ProtocolState) String() string {
-	// print the current state summary
-	return fmt.Sprintf("-----------------------\n"+
-		"State of node %X @ %s:\n"+
-		"Round: %d\n"+
-		"Finished: %t\n"+
-		"message sent: %d\n"+
-		"bytes sent: %d\n"+
-		"largest message size: %d\n"+
-		"message received: %d\n"+
-		"view size: %d\n"+
-		"-----------------------\n",
-		p.MyId.GetUUID(), p.MyId.Address, p.Round, p.Finished, p.MsgCount, p.ByteCount, p.LargestMsgSize, p.MsgReceived, len(p.View))
-}
+
 
 func (p *ProtocolState) addToInitView(id message.Identity) {
 	if _, ok := p.idToAddrMap[id.GetUUID()]; !ok {
