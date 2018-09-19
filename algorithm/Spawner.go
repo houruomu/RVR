@@ -42,7 +42,7 @@ func (s *SpawnerState) Start() {
 	addr := myIP + myPort
 	// report to controller
 
-	RpcCall(s.ControlAddress, "ControllerState.RegisterServer", addr, nil)
+	RpcCall(s.ControlAddress, "ControllerState.RegisterServer", addr, nil, time.Second)
 	fmt.Printf("Spawner Ready: %s\n", addr)
 
 }

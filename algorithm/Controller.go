@@ -42,7 +42,7 @@ func (c *ControllerState) checkConnection() {
 	c.lock.RLock()
 	c.lockHolder = "checkConnection"
 	for i, _ := range c.PeerList {
-		err := RpcCall(c.PeerList[i].Address, "ProtocolState.BlackHole", make([]byte, 0), nil)
+		err := RpcCall(c.PeerList[i].Address, "ProtocolState.BlackHole", make([]byte, 0), nil, time.Second)
 		if err != nil {
 			fmt.Printf("Peer %s disconnected.\n", c.PeerList[i].Address)
 			continue
@@ -64,7 +64,7 @@ func (c *ControllerState) checkConnection() {
 	c.lock.RLock()
 	c.lockHolder = "checkConnection"
 	for i, _ := range c.ServerList {
-		err := RpcCall(c.ServerList[i], "SpawnerState.BlackHole", make([]byte, 0), nil)
+		err := RpcCall(c.ServerList[i], "SpawnerState.BlackHole", make([]byte, 0), nil, time.Second)
 		if err != nil {
 			fmt.Printf("Server %s disconnected.\n", c.ServerList[i])
 			continue
@@ -106,7 +106,7 @@ func (c *ControllerState) spawnEvenly(count int) {
 }
 
 func (c *ControllerState) Spawn(addr string, count int) {
-	RpcCall(addr, "SpawnerState.Spawn", count, nil)
+	RpcCall(addr, "SpawnerState.Spawn", count, nil, time.Second)
 }
 
 func (c *ControllerState) RegisterServer(addr string, rtv *int) error {
@@ -140,7 +140,7 @@ func (c *ControllerState) setupRandomizedView() error {
 				view = append(view, c.PeerList[j].GetUUID())
 			}
 		}
-		go RpcCall(c.PeerList[i].Address, "ProtocolState.SetView", view, nil)
+		go RpcCall(c.PeerList[i].Address, "ProtocolState.SetView", view, nil, time.Second)
 	}
 	c.lock.RUnlock()
 	return nil
@@ -153,9 +153,9 @@ func (c *ControllerState) SetupProtocol(ph1 int, ph2 *int) error {
 
 	connectedPeers := make([]message.Identity, 0)
 	for _, peer := range c.PeerList {
-		err := RpcCall(peer.Address, "ProtocolState.Setup", c.SetupParams, nil)
+		err := RpcCall(peer.Address, "ProtocolState.Setup", c.SetupParams, nil, time.Second)
 		if err != nil {
-			RpcCall(peer.Address, "ProtocolState.Exit", c.SetupParams, nil)
+			RpcCall(peer.Address, "ProtocolState.Exit", c.SetupParams, nil, time.Second)
 		} else {
 			connectedPeers = append(connectedPeers, peer)
 		}
@@ -170,7 +170,7 @@ func (c *ControllerState) SetupProtocol(ph1 int, ph2 *int) error {
 }
 
 func (c *ControllerState) killNode(addr string) {
-	RpcCall(addr, "ProtocolState.Exit", 1, nil)
+	RpcCall(addr, "ProtocolState.Exit", 1, nil, time.Second)
 }
 
 func (c *ControllerState) KillNodes(ph1 int, ph2 *int) error {
@@ -185,7 +185,7 @@ func (c *ControllerState) KillNodes(ph1 int, ph2 *int) error {
 
 func (c *ControllerState) KillServers(ph1 int, ph2 *int) error {
 	for i, _ := range c.ServerList {
-		RpcCall(c.ServerList[i], "SpawnerState.Exit", 1, nil)
+		RpcCall(c.ServerList[i], "SpawnerState.Exit", 1, nil, time.Second)
 	}
 	return nil
 }
@@ -194,7 +194,7 @@ func (c *ControllerState) StartProtocol(ph1 int, ph2 *int) error {
 	c.lock.RLock()
 	c.lockHolder = "StartProtocol"
 	for i, _ := range c.PeerList {
-		go RpcCall(c.PeerList[i].Address, "ProtocolState.Start", 1, nil)
+		go RpcCall(c.PeerList[i].Address, "ProtocolState.Start", 1, nil, c.SetupParams.RoundDuration)
 	}
 	c.lock.RUnlock()
 
@@ -202,7 +202,7 @@ func (c *ControllerState) StartProtocol(ph1 int, ph2 *int) error {
 	startedPeers := make([]message.Identity, 0)
 	for _, peer := range c.PeerList {
 		state := ProtocolState{}
-		err := RpcCall(peer.Address, "ProtocolState.RetrieveState", 1, &state)
+		err := RpcCall(peer.Address, "ProtocolState.RetrieveState", 1, &state, c.SetupParams.RoundDuration)
 		if err == nil && state.Round > 1 {
 			startedPeers = append(startedPeers, peer)
 		} else {
@@ -218,7 +218,7 @@ func (c *ControllerState) StartProtocol(ph1 int, ph2 *int) error {
 
 func (c *ControllerState) checkState(address string) string {
 	state := ProtocolState{}
-	RpcCall(address, "ProtocolState.RetrieveState", 1, &state)
+	RpcCall(address, "ProtocolState.RetrieveState", 1, &state, c.SetupParams.RoundDuration)
 	return state.String()
 }
 
@@ -234,8 +234,8 @@ func (c *ControllerState) measure() {
 	c.NetworkMetric = make([]PingValueReport, 0)
 	c.lock.RLock()
 	c.lockHolder = "measure"
-	for i, _ := range c.PeerList {
-		go RpcCall(c.PeerList[i].Address, "ProtocolState.PingReport", 2000, nil)
+	for _, peer := range c.PeerList {
+		go RpcCall(peer.Address, "ProtocolState.PingReport", 2000, nil, c.SetupParams.RoundDuration)
 	}
 	c.lock.RUnlock()
 
@@ -281,7 +281,7 @@ func (c *ControllerState) report() (report string, fin bool, cons bool, round in
 	c.lockHolder = "report"
 	for i, _ := range c.PeerList {
 		newState := ProtocolState{}
-		err := RpcCall(c.PeerList[i].Address, "ProtocolState.RetrieveState", 1, &newState)
+		err := RpcCall(c.PeerList[i].Address, "ProtocolState.RetrieveState", 1, &newState, c.SetupParams.RoundDuration)
 		if err != nil {
 			fmt.Printf("Check State error RPC:", err.Error())
 			continue
@@ -326,7 +326,7 @@ func (c *ControllerState) StartListen() {
 				go func() {
 					// pick a random node to retrieve state
 					nodeAddr := c.PeerList[rand.Int()%len(c.PeerList)].Address
-					print(c.checkState(nodeAddr))
+					fmt.Printf(c.checkState(nodeAddr))
 				}()
 			case "lock":
 				fmt.Printf("Lock holder: %s\n", c.lockHolder)

@@ -96,7 +96,7 @@ func (p *ProtocolState) testPing(size int, addr string) int {
 	data := make([]byte, size)
 	rand.Read(data)
 	startTime := time.Now()
-	err := RpcCall(addr, "ProtocolState.BlackHole", data, nil)
+	err := RpcCall(addr, "ProtocolState.BlackHole", data, nil, p.roundDuration)
 	if err != nil {
 		return -1
 	}
@@ -120,7 +120,7 @@ func (p *ProtocolState) pingReport(size int) PingValueReport {
 func (p *ProtocolState) PingReport(size int, rtv *int) error {
 	go func() {
 		report := p.pingReport(size)
-		RpcCall(p.ControlAddress, "ControllerState.AcceptReport", report, nil)
+		RpcCall(p.ControlAddress, "ControllerState.AcceptReport", report, nil, p.roundDuration)
 	}()
 	return nil
 }
@@ -149,7 +149,7 @@ func (p *ProtocolState) peerMonitor() {
 	newPeerList := make([]message.Identity, 0)
 	// no need lock since we are dealing with values only
 	for _, peer := range p.initView {
-		err := RpcCall(peer.Address, "ProtocolState.BlackHole", make([]byte, 1), nil)
+		err := RpcCall(peer.Address, "ProtocolState.BlackHole", make([]byte, 1), nil, p.roundDuration * time.Duration(p.l))
 		if err == nil {
 			newPeerList = append(newPeerList, peer)
 		} else {
@@ -267,7 +267,7 @@ func (p *ProtocolState) GetReady() {
 	p.MyId = message.Identity{myIP + myPort, x509.MarshalPKCS1PublicKey(&p.privateKey.PublicKey)}
 
 	// report to controller
-	RpcCall(p.ControlAddress, "ControllerState.Register", p.MyId, nil)
+	RpcCall(p.ControlAddress, "ControllerState.Register", p.MyId, nil, p.roundDuration * time.Duration(p.l))
 	fmt.Printf("Node ready to receive instructions, Address: %s\n", p.MyId.Address)
 
 }
@@ -378,7 +378,7 @@ func (p *ProtocolState) addToInitView(id message.Identity) {
 
 func (p *ProtocolState) sendMsgToPeerAsync(m message.Message, addr string) {
 	go func() {
-		err := RpcCall(addr, "ProtocolState.SendInMsg", m, nil)
+		err := RpcCall(addr, "ProtocolState.SendInMsg", m, nil, p.roundDuration)
 		// measurement
 		if err != nil {
 			p.lock.Lock()
