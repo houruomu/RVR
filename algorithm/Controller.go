@@ -16,7 +16,7 @@ import (
 // this packet is to monitor and coordinate the nodes
 
 var DefaultSetupParams = ProtocolRPCSetupParams{
-	100 * time.Millisecond,
+	400 * time.Millisecond,
 	2,
 	0.01,
 	0.01,
@@ -252,7 +252,7 @@ func (c *ControllerState) measure() {
 		avgDelay)
 }
 
-func (c *ControllerState) report() string {
+func (c *ControllerState) report() (report string, fin bool, cons bool, round int) {
 	defer func() {
 		if r := recover(); r != nil {
 			fmt.Printf("Panic Catched in report %s\n", r)
@@ -347,44 +347,77 @@ func (c *ControllerState) autoTest(size int, params ProtocolRPCSetupParams) {
 
 	print("Auto-test starting!\n")
 	var report string
+	consensusReached := false
+	consensusTime := 3600 * time.Second
+	consensusRound := 0
 	startTime := time.Now()
 	for {
 		time.Sleep(10 * time.Second)
-		report = c.report()
-		if report == ""{
-			continue
+		_report, fin, cons, round := c.report()
+		report = _report
+		if !consensusReached && cons{
+			consensusReached = true
+			consensusTime = time.Now().Sub(startTime)
+			consensusRound = round
 		}
-		if report[0] == 't' || time.Now().Sub(startTime) > 2000*time.Second {
+		if fin || time.Now().Sub(startTime) > 2000*time.Second {
 			// finished
 			break
 		}
 	}
 	print("Auto-test completed!\n")
-	fmt.Printf("%d, %d, %s", len(c.PeerList), len(c.ServerList), report)
+	fmt.Printf("%d, %d, %s, %d, %d", len(c.PeerList), len(c.ServerList), report, consensusTime, consensusRound)
 }
 
 func (c *ControllerState) batchTest() {
 	sizeList := []int{160, 320}
-	durationList := []int32{600}
+	durationList := []int32{100, 200, 300, 400}
 	deltaList := []float64{0.005, 0.01, 0.001}
 	fList := []float64{0.03, 0.01, 0.02}
-	gList := []float64{0.005, 0.01}
+	gList := []float64{0.005, 0.01, 0.0025}
 
-	for _, size := range sizeList {
-		for _, dur := range durationList {
-			for _, delta := range deltaList {
-				for _, f := range fList {
-					for _, g := range gList {
-						for i := 0; i < 1; i++ {
-							c.SetupParams.RoundDuration = time.Duration(dur) * time.Millisecond
-							c.SetupParams.Delta = delta
-							c.SetupParams.F = f
-							c.SetupParams.G = g
-							c.autoTest(size, c.SetupParams)
-						}
-					}
-				}
-			}
+	//for _, size := range sizeList {
+	//	for _, dur := range durationList {
+	//		for _, delta := range deltaList {
+	//			for _, f := range fList {
+	//				for _, g := range gList {
+	//					for i := 0; i < 1; i++ {
+	//						c.SetupParams.RoundDuration = time.Duration(dur) * time.Millisecond
+	//						c.SetupParams.Delta = delta
+	//						c.SetupParams.F = f
+	//						c.SetupParams.G = g
+	//						c.autoTest(size, c.SetupParams)
+	//					}
+	//				}
+	//			}
+	//		}
+	//	}
+	//}
+
+	for i := 0; i < 5 ;i++{
+		c.SetupParams = DefaultSetupParams
+		for _, size := range sizeList{
+			c.autoTest(size, c.SetupParams)
+		}
+		c.SetupParams = DefaultSetupParams
+		for _, delta := range deltaList{
+			c.SetupParams.Delta = delta
+			c.autoTest(160, c.SetupParams)
+		}
+		c.SetupParams = DefaultSetupParams
+		for _, dur := range durationList{
+			c.SetupParams.RoundDuration = time.Duration(dur) * time.Millisecond
+			c.autoTest(160, c.SetupParams)
+		}
+		c.SetupParams = DefaultSetupParams
+		for _, f := range fList{
+			c.SetupParams.F = f
+			c.autoTest(160, c.SetupParams)
+		}
+		c.SetupParams = DefaultSetupParams
+		for _, g := range gList{
+			c.SetupParams.G = g
+			c.autoTest(160, c.SetupParams)
 		}
 	}
 }

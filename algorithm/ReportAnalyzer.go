@@ -101,13 +101,16 @@ func (data *Data) byteCount(percentile float64) int {
 	return counts[int(math.Floor(percentile*(float64(len(counts))-0.51)))]
 }
 
-func (d *Data) Report() string {
+func (d *Data) Report() (report string, fin bool, cons bool, round int) {
 	if len(d.states) == 0 {
-		return "f"
+		return "f", false, false, -1
 	}
-	report := fmt.Sprintf("%t, %t, %d, %d, %f, %f, %d, %d, %f, %d, %d, %d, %d, %d, %d\n",
-		d.checkFinished(),
-		d.checkConsensus(),
+	fin = d.checkFinished()
+	cons = d.checkConsensus()
+	round = d.states[0].Round
+	report = fmt.Sprintf("%t, %t, %d, %d, %f, %f, %d, %d, %f, %d, %d, %d, %d, %d, %d, %d\n",
+		fin,
+		cons,
 		d.setupParam.RoundDuration,
 		d.setupParam.Offset,
 		d.setupParam.F,
@@ -120,6 +123,7 @@ func (d *Data) Report() string {
 		d.msgCount(0.5),
 		d.msgCount(0.9),
 		d.byteCount(0.5),
-		d.byteCount(0.9))
-	return report
+		d.byteCount(0.9),
+		round)
+	return report, fin, cons, round
 }
