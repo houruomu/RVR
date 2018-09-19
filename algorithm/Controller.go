@@ -34,11 +34,13 @@ type ControllerState struct {
 	ServerList    []string
 	NetworkMetric []PingValueReport
 	lock          sync.RWMutex
+	lockHolder    string // completely for debugging purpose
 }
 
 func (c *ControllerState) checkConnection() {
 	connectedPeers := make([]message.Identity, 0)
 	c.lock.RLock()
+	c.lockHolder = "checkConnection"
 	for i, _ := range c.PeerList {
 		err := RpcCall(c.PeerList[i].Address, "ProtocolState.BlackHole", make([]byte, 0), nil)
 		if err != nil {
@@ -48,11 +50,19 @@ func (c *ControllerState) checkConnection() {
 		connectedPeers = append(connectedPeers, c.PeerList[i])
 	}
 	c.lock.RUnlock()
+
+
 	c.lock.Lock()
+	c.lockHolder = "checkConnection"
 	c.PeerList = connectedPeers
+	c.lockHolder = ""
 	c.lock.Unlock()
+
+
 	connectedServers := make([]string, 0)
+
 	c.lock.RLock()
+	c.lockHolder = "checkConnection"
 	for i, _ := range c.ServerList {
 		err := RpcCall(c.ServerList[i], "SpawnerState.BlackHole", make([]byte, 0), nil)
 		if err != nil {
@@ -62,14 +72,18 @@ func (c *ControllerState) checkConnection() {
 		connectedServers = append(connectedServers, c.ServerList[i])
 	}
 	c.lock.RUnlock()
+
 	c.lock.Lock()
+	c.lockHolder = "checkConnection"
 	c.ServerList = connectedServers
+	c.lockHolder = ""
 	c.lock.Unlock()
 }
 
 func (c *ControllerState) spawnEvenly(count int) {
 	c.checkConnection()
 	c.lock.RLock()
+	c.lockHolder = "spawnEvenly"
 	for i, _ := range c.ServerList {
 		numInstance := count / len(c.ServerList)
 		if i < count%len(c.ServerList) {
@@ -80,12 +94,14 @@ func (c *ControllerState) spawnEvenly(count int) {
 	c.lock.RUnlock()
 	// shuffle the list //https://stackoverflow.com/questions/12264789/shuffle-array-in-go
 	c.lock.Lock()
+	c.lockHolder = "spawnEvenly"
 	newServerList := make([]string, len(c.ServerList))
 	perm := rand.Perm(len(c.ServerList))
 	for i, v := range perm {
 		newServerList[v] = c.ServerList[i]
 	}
 	c.ServerList = newServerList
+	c.lockHolder = ""
 	c.lock.Unlock()
 }
 
@@ -95,7 +111,9 @@ func (c *ControllerState) Spawn(addr string, count int) {
 
 func (c *ControllerState) RegisterServer(addr string, rtv *int) error {
 	c.lock.Lock()
+	c.lockHolder = "RegisterServer"
 	c.ServerList = append(c.ServerList, addr)
+	c.lockHolder = ""
 	c.lock.Unlock()
 	fmt.Printf("New Server registered at controller: %s\n", addr)
 	return nil
@@ -103,7 +121,9 @@ func (c *ControllerState) RegisterServer(addr string, rtv *int) error {
 
 func (c *ControllerState) Register(id message.Identity, rtv *int) error {
 	c.lock.Lock()
+	c.lockHolder = "Register"
 	c.PeerList = append(c.PeerList, id)
+	c.lockHolder = ""
 	c.lock.Unlock()
 	fmt.Printf("New Peer registered at controller: %s\n", id.Address)
 	return nil
@@ -111,6 +131,7 @@ func (c *ControllerState) Register(id message.Identity, rtv *int) error {
 
 func (c *ControllerState) setupRandomizedView() error {
 	c.lock.RLock()
+	c.lockHolder = "setupRandomizedView"
 	for i, _ := range c.PeerList {
 		view := make([]uint64, 0)
 		for j, _ := range c.PeerList {
@@ -140,6 +161,7 @@ func (c *ControllerState) SetupProtocol(ph1 int, ph2 *int) error {
 		}
 	}
 	c.lock.Lock()
+	c.lockHolder = "SetupProtocol"
 	c.PeerList = connectedPeers
 	c.lock.Unlock()
 	c.setupRandomizedView()
@@ -153,6 +175,7 @@ func (c *ControllerState) killNode(addr string) {
 
 func (c *ControllerState) KillNodes(ph1 int, ph2 *int) error {
 	c.lock.RLock()
+	c.lockHolder = "KillNodes"
 	defer c.lock.RUnlock()
 	for i, _ := range c.PeerList {
 		c.killNode(c.PeerList[i].Address)
@@ -169,8 +192,9 @@ func (c *ControllerState) KillServers(ph1 int, ph2 *int) error {
 
 func (c *ControllerState) StartProtocol(ph1 int, ph2 *int) error {
 	c.lock.RLock()
+	c.lockHolder = "StartProtocol"
 	for i, _ := range c.PeerList {
-		go RpcCall(c.PeerList[i].Address,"ProtocolState.Start", 1, nil)
+		go RpcCall(c.PeerList[i].Address, "ProtocolState.Start", 1, nil)
 	}
 	c.lock.RUnlock()
 
@@ -179,13 +203,14 @@ func (c *ControllerState) StartProtocol(ph1 int, ph2 *int) error {
 	for _, peer := range c.PeerList {
 		state := ProtocolState{}
 		err := RpcCall(peer.Address, "ProtocolState.RetrieveState", 1, &state)
-		if err == nil && state.Round > 1{
+		if err == nil && state.Round > 1 {
 			startedPeers = append(startedPeers, peer)
-		}else{
+		} else {
 			c.killNode(peer.Address)
 		}
 	}
 	c.lock.Lock()
+	c.lockHolder = "StartProtocol"
 	c.PeerList = startedPeers
 	c.lock.Unlock()
 	return nil
@@ -199,6 +224,7 @@ func (c *ControllerState) checkState(address string) string {
 
 func (c *ControllerState) AcceptReport(report PingValueReport, ph2 *int) error {
 	c.lock.Lock()
+	c.lockHolder = "AcceptReport"
 	c.NetworkMetric = append(c.NetworkMetric, report)
 	c.lock.Unlock()
 	return nil
@@ -207,6 +233,7 @@ func (c *ControllerState) AcceptReport(report PingValueReport, ph2 *int) error {
 func (c *ControllerState) measure() {
 	c.NetworkMetric = make([]PingValueReport, 0)
 	c.lock.RLock()
+	c.lockHolder = "measure"
 	for i, _ := range c.PeerList {
 		go RpcCall(c.PeerList[i].Address, "ProtocolState.PingReport", 2000, nil)
 	}
@@ -251,6 +278,7 @@ func (c *ControllerState) report() (report string, fin bool, cons bool, round in
 	}()
 	state := make([]ProtocolState, 0)
 	c.lock.RLock()
+	c.lockHolder = "report"
 	for i, _ := range c.PeerList {
 		newState := ProtocolState{}
 		err := RpcCall(c.PeerList[i].Address, "ProtocolState.RetrieveState", 1, &newState)
@@ -291,25 +319,27 @@ func (c *ControllerState) StartListen() {
 			case "auto":
 				go c.autoTest(10, DefaultSetupParams, false)
 			case "setup":
-				c.SetupProtocol(1, nil)
+				go c.SetupProtocol(1, nil)
 			case "start":
-				c.StartProtocol(1, nil)
+				go c.StartProtocol(1, nil)
 			case "state":
-				go func(){
+				go func() {
 					// pick a random node to retrieve state
 					nodeAddr := c.PeerList[rand.Int()%len(c.PeerList)].Address
 					print(c.checkState(nodeAddr))
 				}()
+			case "lock":
+				fmt.Printf("Lock holder: %s\n", c.lockHolder)
 			case "measure":
 				go c.measure()
 			case "report":
 				// pick a random node to retrieve state
-				go func(){
+				go func() {
 					report, _, _, _ := c.report()
 					fmt.Printf("%s\n", report)
 				}()
 			case "reset":
-				go func(){
+				go func() {
 					c.KillNodes(1, nil)
 					c.PeerList = make([]message.Identity, 0)
 				}()
@@ -330,12 +360,10 @@ func (c *ControllerState) StartListen() {
 func (c *ControllerState) autoTest(size int, params ProtocolRPCSetupParams, stopOnceConsensus bool) (consensus bool) {
 	c.KillNodes(1, nil)
 	c.PeerList = make([]message.Identity, 0)
-	for len(c.PeerList) < size{
+	for len(c.PeerList) < size {
 		c.spawnEvenly(size - len(c.PeerList))
 		time.Sleep(10 * time.Second)
 	}
-
-
 
 	c.SetupParams = params
 	fmt.Printf("Auto test: setting up protocol\n", )
@@ -352,11 +380,11 @@ func (c *ControllerState) autoTest(size int, params ProtocolRPCSetupParams, stop
 	consensusTime := 3600 * time.Second
 	consensusRound := 0
 	startTime := time.Now()
-	for !(stopOnceConsensus && consensusReached){
+	for !(stopOnceConsensus && consensusReached) {
 		time.Sleep(10 * time.Second)
 		_report, fin, cons, round := c.report()
 		report = _report
-		if !consensusReached && cons{
+		if !consensusReached && cons {
 			consensusReached = true
 			consensusTime = time.Now().Sub(startTime)
 			consensusRound = round
@@ -377,7 +405,7 @@ func (c *ControllerState) batchTest() {
 	deltaList := []float64{0.005, 0.01, 0.001}
 	fList := []float64{0.03, 0.01, 0.02}
 	gList := []float64{0.005, 0.01, 0.0025}
-	offsetList := []int{2,4,6,8}
+	offsetList := []int{2, 4, 6, 8}
 
 	//for _, size := range sizeList {
 	//	for _, dur := range durationList {
@@ -397,33 +425,33 @@ func (c *ControllerState) batchTest() {
 	//	}
 	//}
 
-	for i := 0; i < 5 ;i++{
+	for i := 0; i < 5; i++ {
 		c.SetupParams = DefaultSetupParams
-		for _, size := range sizeList{
+		for _, size := range sizeList {
 			c.autoTest(size, c.SetupParams, true)
 		}
 		c.SetupParams = DefaultSetupParams
-		for _, delta := range deltaList{
+		for _, delta := range deltaList {
 			c.SetupParams.Delta = delta
 			c.autoTest(160, c.SetupParams, false)
 		}
 		c.SetupParams = DefaultSetupParams
-		for _, dur := range durationList{
-			for _, offset := range offsetList{
+		for _, dur := range durationList {
+			for _, offset := range offsetList {
 				c.SetupParams.Offset = offset
 				c.SetupParams.RoundDuration = time.Duration(dur) * time.Millisecond
-				if c.autoTest(160, c.SetupParams, true){
+				if c.autoTest(160, c.SetupParams, true) {
 					break
 				}
 			}
 		}
 		c.SetupParams = DefaultSetupParams
-		for _, f := range fList{
+		for _, f := range fList {
 			c.SetupParams.F = f
 			c.autoTest(160, c.SetupParams, false)
 		}
 		c.SetupParams = DefaultSetupParams
-		for _, g := range gList{
+		for _, g := range gList {
 			c.SetupParams.G = g
 			c.autoTest(160, c.SetupParams, false)
 		}
