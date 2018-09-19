@@ -3,7 +3,7 @@ Randomized View Reconciliation
 Usage:
 `
 go build  
-./RVR [--mode=controller|spawner|node] [--server=CONTROLLER_ADDRESS]
+./RVR [--mode=controller|spawner|node] [--server=CONTROLLER_ADDRESS]  
 `
 The controller supports the following commands:  
 batch : Automated batch testing (accroding to the scheme written in algorithm/Controller.batch)  
