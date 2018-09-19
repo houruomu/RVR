@@ -144,7 +144,7 @@ func (c *ControllerState) SetupProtocol(ph1 int, ph2 *int) error {
 	c.PeerList = connectedPeers
 	c.lock.Unlock()
 	c.setupRandomizedView()
-	print(c.SetupParams.String())
+	fmt.Printf(c.SetupParams.String())
 	return nil
 }
 
@@ -338,6 +338,8 @@ func (c *ControllerState) autoTest(size int, params ProtocolRPCSetupParams) {
 	c.KillNodes(1, nil)
 	c.PeerList = make([]message.Identity, 0)
 	c.spawnEvenly(size)
+
+	time.Sleep(4 * c.SetupParams.RoundDuration)
 
 	c.SetupParams = params
 	fmt.Printf("Auto test: setting up protocol\n", )

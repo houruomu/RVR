@@ -1,7 +1,7 @@
 env GOOS=linux GOARCH=amd64 go build
 env GOOS=windows GOARCH=amd64 go build
 git add *
-git commit -m "Version 0.3.1. change monitor activation time to reduce race condition"
+git commit -m "Version 0.3.2. Sleep after spawn to wait for registration"
 git push
 
 exit
