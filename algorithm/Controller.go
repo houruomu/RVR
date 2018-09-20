@@ -45,6 +45,7 @@ func (c *ControllerState) checkConnection() {
 			err := RpcCall(peer.Address, "ProtocolState.BlackHole", make([]byte, 0), nil, time.Second)
 			if err != nil {
 				fmt.Printf("Peer %s disconnected.\n", peer.Address)
+				return
 			}
 			localLock.Lock()
 			defer localLock.Unlock()
@@ -67,6 +68,7 @@ func (c *ControllerState) checkConnection() {
 			err := RpcCall(server, "SpawnerState.BlackHole", make([]byte, 0), nil, time.Second)
 			if err != nil {
 				fmt.Printf("Server %s disconnected.\n", server)
+				return
 			}
 			localLock.Lock()
 			defer localLock.Unlock()
