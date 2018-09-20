@@ -39,21 +39,15 @@ type ControllerState struct {
 
 func (c *ControllerState) checkConnection() {
 	connectedPeers := make([]message.Identity, 0)
-	c.lock.RLock()
-	c.lockHolder = "checkConnection_node"
-	for i, _ := range c.PeerList {
-		go func (i int){
-			err := RpcCall(c.PeerList[i].Address, "ProtocolState.BlackHole", make([]byte, 0), nil, time.Second)
+	for _, peer := range c.PeerList {
+		go func (peer message.Identity){
+			err := RpcCall(peer.Address, "ProtocolState.BlackHole", make([]byte, 0), nil, time.Second)
 			if err != nil {
-				fmt.Printf("Peer %s disconnected.\n", c.PeerList[i].Address)
+				fmt.Printf("Peer %s disconnected.\n", peer.Address)
 			}
-			c.lock.Lock()
-			defer c.lock.Unlock()
-			connectedPeers = append(connectedPeers, c.PeerList[i])
-		}(i)
+			connectedPeers = append(connectedPeers, peer)
+		}(peer)
 	}
-	c.lock.RUnlock()
-
 	time.Sleep(time.Second)
 
 	c.lock.Lock()
