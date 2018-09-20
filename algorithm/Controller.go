@@ -38,6 +38,7 @@ type ControllerState struct {
 }
 
 func (c *ControllerState) checkConnection() {
+	localLock := sync.Mutex{}
 	connectedPeers := make([]message.Identity, 0)
 	for _, peer := range c.PeerList {
 		go func (peer message.Identity){
@@ -45,6 +46,8 @@ func (c *ControllerState) checkConnection() {
 			if err != nil {
 				fmt.Printf("Peer %s disconnected.\n", peer.Address)
 			}
+			localLock.Lock()
+			defer localLock.Unlock()
 			connectedPeers = append(connectedPeers, peer)
 		}(peer)
 	}
@@ -59,17 +62,19 @@ func (c *ControllerState) checkConnection() {
 
 	connectedServers := make([]string, 0)
 
-	c.lock.RLock()
-	c.lockHolder = "checkConnection_server"
-	for i, _ := range c.ServerList {
-		err := RpcCall(c.ServerList[i], "SpawnerState.BlackHole", make([]byte, 0), nil, time.Second)
-		if err != nil {
-			fmt.Printf("Server %s disconnected.\n", c.ServerList[i])
-			continue
-		}
-		connectedServers = append(connectedServers, c.ServerList[i])
+	for _, server := range c.ServerList {
+		go func (server string){
+			err := RpcCall(server, "SpawnerState.BlackHole", make([]byte, 0), nil, time.Second)
+			if err != nil {
+				fmt.Printf("Server %s disconnected.\n", server)
+			}
+			localLock.Lock()
+			defer localLock.Unlock()
+			connectedServers = append(connectedServers, server)
+		}(server)
 	}
-	c.lock.RUnlock()
+
+	time.Sleep(time.Second)
 
 	c.lock.Lock()
 	c.lockHolder = "checkConnection"
@@ -274,24 +279,32 @@ func (c *ControllerState) report() (report string, fin bool, cons bool, round in
 			fmt.Printf("Panic Catched in report %s\n", r)
 		}
 	}()
-	state := make([]ProtocolState, 0)
-	c.lock.RLock()
-	c.lockHolder = "report"
-	for i, _ := range c.PeerList {
-		go func (i int){
+	statelen := 0
+	stateChan := make(chan *ProtocolState)
+	for _, peer := range c.PeerList {
+		statelen++
+		go func (addr string){
 			newState := ProtocolState{}
-			err := RpcCall(c.PeerList[i].Address, "ProtocolState.RetrieveState", 1, &newState, c.SetupParams.RoundDuration)
+			err := RpcCall(addr, "ProtocolState.RetrieveState", 1, &newState, c.SetupParams.RoundDuration)
 			if err != nil {
 				fmt.Printf("report state error: %s \n", err.Error())
+				stateChan <- nil
+			}else{
+				stateChan <- &newState
 			}
-			c.lock.Lock()
-			defer c.lock.Unlock()
-			state = append(state, newState)
-		}(i)
+		}(peer.Address)
 	}
-	c.lockHolder = ""
-	c.lock.RUnlock()
-	time.Sleep(c.SetupParams.RoundDuration * 4)
+	state := make([]ProtocolState, 0)
+	for i := 0; i < statelen; i++{
+		s := <-stateChan
+		if s != nil{
+			state = append(state, *s)
+		}
+	}
+	if len(state) != len(c.PeerList){
+		return "f", false, false, -1
+	}
+
 	analysis := Data{state, c.SetupParams}
 	return analysis.Report()
 }

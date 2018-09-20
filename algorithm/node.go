@@ -334,26 +334,26 @@ func (p *ProtocolState) Start(command int, rtv *int) error {
 				p.Exit(1, nil)
 			}
 		}()
-		go func() {
-			for {
-				time.Sleep(10 * time.Second)
-				select {
-				case <-p.ExitSignal:
-					p.ExitSignal <- true
-					return
-				default:
-				}
-				p.peerMonitor()
-				if p.localMonitor(p.l) == false {
-					fmt.Printf("%s: Terminating due to violation of network condition.\n", p.MyId.Address)
-					p.ExitSignal <- true
-					return
-				}
-			}
-		}()
 		p.viewReconciliation()
 	}()
 	p.StartTime = time.Now()
+	go func() {
+		for {
+			time.Sleep(10 * time.Second)
+			select {
+			case <-p.ExitSignal:
+				p.ExitSignal <- true
+				return
+			default:
+			}
+			p.peerMonitor()
+			if p.localMonitor(p.l) == false {
+				fmt.Printf("%s: Terminating due to violation of network condition.\n", p.MyId.Address)
+				p.ExitSignal <- true
+				return
+			}
+		}
+	}()
 	return nil
 }
 
