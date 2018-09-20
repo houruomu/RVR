@@ -40,17 +40,21 @@ type ControllerState struct {
 func (c *ControllerState) checkConnection() {
 	connectedPeers := make([]message.Identity, 0)
 	c.lock.RLock()
-	c.lockHolder = "checkConnection"
+	c.lockHolder = "checkConnection_node"
 	for i, _ := range c.PeerList {
-		err := RpcCall(c.PeerList[i].Address, "ProtocolState.BlackHole", make([]byte, 0), nil, time.Second)
-		if err != nil {
-			fmt.Printf("Peer %s disconnected.\n", c.PeerList[i].Address)
-			continue
-		}
-		connectedPeers = append(connectedPeers, c.PeerList[i])
+		go func (i int){
+			err := RpcCall(c.PeerList[i].Address, "ProtocolState.BlackHole", make([]byte, 0), nil, time.Second)
+			if err != nil {
+				fmt.Printf("Peer %s disconnected.\n", c.PeerList[i].Address)
+			}
+			c.lock.Lock()
+			defer c.lock.Unlock()
+			connectedPeers = append(connectedPeers, c.PeerList[i])
+		}(i)
 	}
 	c.lock.RUnlock()
 
+	time.Sleep(time.Second)
 
 	c.lock.Lock()
 	c.lockHolder = "checkConnection"
@@ -62,7 +66,7 @@ func (c *ControllerState) checkConnection() {
 	connectedServers := make([]string, 0)
 
 	c.lock.RLock()
-	c.lockHolder = "checkConnection"
+	c.lockHolder = "checkConnection_server"
 	for i, _ := range c.ServerList {
 		err := RpcCall(c.ServerList[i], "SpawnerState.BlackHole", make([]byte, 0), nil, time.Second)
 		if err != nil {
@@ -284,7 +288,7 @@ func (c *ControllerState) report() (report string, fin bool, cons bool, round in
 			newState := ProtocolState{}
 			err := RpcCall(c.PeerList[i].Address, "ProtocolState.RetrieveState", 1, &newState, c.SetupParams.RoundDuration)
 			if err != nil {
-				fmt.Printf("report state error:", err.Error())
+				fmt.Printf("report state error: %s \n", err.Error())
 			}
 			c.lock.Lock()
 			defer c.lock.Unlock()
@@ -347,6 +351,10 @@ func (c *ControllerState) StartListen() {
 				go func() {
 					c.KillNodes(1, nil)
 					c.PeerList = make([]message.Identity, 0)
+				}()
+			case "load":
+				go func(){
+					c.lock.Lock(); c.ServerList = SPAWNER_LIST; c.lock.Unlock(); fmt.Printf("default spawners loaded.\n")
 				}()
 			case "spawn":
 				serverAddr := c.ServerList[rand.Int()%len(c.ServerList)]
