@@ -88,7 +88,14 @@ func ListenRPC(portAddr string, worker interface{}, exitSignal chan bool) string
 				fmt.Printf("Error: accept rpc connection %s", err.Error())
 				continue
 			}
+			defer conn.Close()
 			go func(conn net.Conn) {
+				defer func() {
+					r := recover()
+					if r != nil{
+						fmt.Printf("%s\n", r)
+					}
+				}()
 				buf := bufio.NewWriter(conn)
 				srv := &gobServerCodec{
 					rwc:    conn,
@@ -142,7 +149,6 @@ func RpcCall(srv string, rpcname string, args interface{}, reply interface{}, ti
 	defer func() {
 		if r := recover(); r != nil {
 			// fail gracefully
-			fmt.Printf("RPC Call failed. srv: %s, rpcname: %s, error: %s\n", srv, rpcname, r)
 			ret = fmt.Errorf("%s", r)
 		}
 	}()

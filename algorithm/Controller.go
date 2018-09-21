@@ -344,9 +344,13 @@ func (c *ControllerState) StartListen() {
 				go c.StartProtocol(1, nil)
 			case "state":
 				go func() {
-					// pick a random node to retrieve state
-					nodeAddr := c.PeerList[rand.Int()%len(c.PeerList)].Address
-					fmt.Printf(c.checkState(nodeAddr))
+					if len(c.PeerList) == 0{
+						fmt.Printf("Peer list is empty\n", )
+					}else{
+						// pick a random node to retrieve state
+						nodeAddr := c.PeerList[rand.Int()%len(c.PeerList)].Address
+						fmt.Printf(c.checkState(nodeAddr))
+					}
 				}()
 			case "lock":
 				fmt.Printf("Lock holder: %s\n", c.lockHolder)
@@ -368,8 +372,12 @@ func (c *ControllerState) StartListen() {
 					c.lock.Lock(); c.ServerList = SPAWNER_LIST; c.lock.Unlock(); fmt.Printf("default spawners loaded.\n")
 				}()
 			case "spawn":
-				serverAddr := c.ServerList[rand.Int()%len(c.ServerList)]
-				c.Spawn(serverAddr, 1)
+				if len(c.ServerList) == 0{
+					fmt.Printf("No spawner found.\n", )
+				}else{
+					serverAddr := c.ServerList[rand.Int()%len(c.ServerList)]
+					c.Spawn(serverAddr, 1)
+				}
 			case "exit":
 				c.KillNodes(1, nil)
 				c.KillServers(1, nil)
@@ -382,6 +390,12 @@ func (c *ControllerState) StartListen() {
 }
 
 func (c *ControllerState) autoTest(size int, params ProtocolRPCSetupParams, stopOnceConsensus bool) (consensus bool) {
+	defer func() {
+		if r := recover(); r != nil {
+			consensus = false
+			fmt.Printf("Auto-test Paniced! %s\n", r)
+		}
+	}()
 	c.KillNodes(1, nil)
 	c.PeerList = make([]message.Identity, 0)
 	for len(c.PeerList) < size {
