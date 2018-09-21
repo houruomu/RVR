@@ -101,6 +101,7 @@ func (p *ProtocolState) String() string {
 func GetOutboundAddr() string {
 	conn, err := net.Dial("udp", "8.8.8.8:80")
 	if err != nil {
+		fmt.Printf("Unable to get outbound address.\n", )
 		log.Fatal(err)
 	}
 	defer conn.Close()
@@ -108,28 +109,39 @@ func GetOutboundAddr() string {
 	return localAddr.IP.String()
 }
 
-func (p *ProtocolState) testPing(size int, addr string) int {
+func (p *ProtocolState) testPing(size int, addr string, timeout time.Duration, rtv chan int) int {
 	data := make([]byte, size)
 	rand.Read(data)
 	startTime := time.Now()
-	err := RpcCall(addr, "ProtocolState.BlackHole", data, nil, p.roundDuration)
+	err := RpcCall(addr, "ProtocolState.BlackHole", data, nil, timeout)
 	if err != nil {
+		if rtv != nil{
+			rtv <- -1
+		}
 		return -1
+	}else{
+		finTime := int(time.Now().Sub(startTime))
+		if rtv != nil{
+			rtv <- finTime
+		}
+		return finTime
 	}
-	return int(time.Now().Sub(startTime))
 }
 
 func (p *ProtocolState) pingReport(size int) PingValueReport {
-	report := make(PingValueReport, len(p.initView))
-	p.lock.RLock()
-	for i, _ := range p.initView {
-		report[i] = -1
-		go func(i int) {
-			report[i] = p.testPing(size, p.initView[i].Address)
-		}(i)
+	// this function returns an array of ping values to every peer
+	reportLen := 0
+	reportChan := make(chan int, 0)
+	for _, peer := range p.initView {
+		reportLen++
+		go func(addr string) {
+			p.testPing(size, addr, p.roundDuration, reportChan)
+		}(peer.Address)
 	}
-	p.lock.RUnlock()
-	time.Sleep(2 * p.roundDuration)
+	report := make(PingValueReport, reportLen)
+	for i := 0; i < reportLen; i++{
+		report[i] = <-reportChan
+	}
 	return report
 }
 
@@ -163,13 +175,25 @@ func (p *ProtocolState) localMonitor(recur int) bool {
 
 func (p *ProtocolState) peerMonitor() {
 	newPeerList := make([]message.Identity, 0)
+	peerChan := make(chan *message.Identity)
+	listLen := 0
 	// no need lock since we are dealing with values only
 	for _, peer := range p.initView {
-		err := RpcCall(peer.Address, "ProtocolState.BlackHole", make([]byte, 1), nil, p.roundDuration * time.Duration(p.l))
-		if err == nil {
-			newPeerList = append(newPeerList, peer)
-		} else {
-			fmt.Printf("dropping peer %s\n", peer.Address)
+		listLen++
+		go func(peer message.Identity){
+			err := RpcCall(peer.Address, "ProtocolState.BlackHole", make([]byte, 1), nil, p.roundDuration * time.Duration(p.l))
+			if err == nil {
+				peerChan <- &peer
+			} else {
+				fmt.Printf("dropping peer %s\n", peer.Address)
+				peerChan <- nil
+			}
+		}(peer)
+	}
+	for i := 0; i < listLen; i++{
+		p := <- peerChan
+		if p != nil{
+			newPeerList = append(newPeerList, *p)
 		}
 	}
 	p.lock.Lock()

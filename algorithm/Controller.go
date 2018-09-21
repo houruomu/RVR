@@ -287,24 +287,26 @@ func (c *ControllerState) report() (report string, fin bool, cons bool, round in
 		statelen++
 		go func (addr string){
 			newState := ProtocolState{}
-			err := RpcCall(addr, "ProtocolState.RetrieveState", 1, &newState, c.SetupParams.RoundDuration)
+			err := RpcCall(addr, "ProtocolState.RetrieveState", 1, &newState, c.SetupParams.RoundDuration * time.Duration(c.SetupParams.L))
 			if err != nil {
-				fmt.Printf("report state error: %s \n", err.Error())
+				fmt.Printf("Report: Unable to connect to %s\n", addr)
 				stateChan <- nil
 			}else{
 				stateChan <- &newState
 			}
 		}(peer.Address)
 	}
-	state := make([]ProtocolState, 0)
+	if statelen != len(c.PeerList){
+		return "false, Unstable state\n", false, false, -1
+	}
+	state := make([]ProtocolState, statelen)
 	for i := 0; i < statelen; i++{
 		s := <-stateChan
 		if s != nil{
-			state = append(state, *s)
+			state[i] = *s
+		}else {
+			return "false, some nodes did not reply\n", false, false, -1
 		}
-	}
-	if len(state) != len(c.PeerList){
-		return "f", false, false, -1
 	}
 
 	analysis := Data{state, c.SetupParams}
@@ -453,11 +455,6 @@ func (c *ControllerState) batchTest() {
 			c.autoTest(size, c.SetupParams, true)
 		}
 		c.SetupParams = DefaultSetupParams
-		for _, delta := range deltaList {
-			c.SetupParams.Delta = delta
-			c.autoTest(160, c.SetupParams, false)
-		}
-		c.SetupParams = DefaultSetupParams
 		for _, dur := range durationList {
 			for _, offset := range offsetList {
 				c.SetupParams.Offset = offset
@@ -466,6 +463,12 @@ func (c *ControllerState) batchTest() {
 					break
 				}
 			}
+		}
+
+		c.SetupParams = DefaultSetupParams
+		for _, delta := range deltaList {
+			c.SetupParams.Delta = delta
+			c.autoTest(160, c.SetupParams, false)
 		}
 		c.SetupParams = DefaultSetupParams
 		for _, f := range fList {
