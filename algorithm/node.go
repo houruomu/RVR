@@ -424,6 +424,30 @@ func (p *ProtocolState) sendMsgToPeerAsync(m message.Message, addr string) {
 	}()
 }
 
+func (p *ProtocolState) sendMsgToPeerWithTrial(m message.Message, addr string, trial int) error {
+	if trial <= 0{
+		return fmt.Errorf("Fail to send to %s.\n", addr)
+	}
+	err := RpcCall(addr, "ProtocolState.SendInMsg", m, nil, p.roundDuration)
+	// measurement
+	if err != nil {
+		p.lock.Lock()
+		p.FailToSend++
+		p.lock.Unlock()
+		return p.sendMsgToPeerWithTrial(m, addr, trial - 1)
+	} else {
+		p.lock.Lock()
+		p.MsgCount++
+		size := int(m.Size())
+		p.ByteCount += size
+		if p.LargestMsgSize < size {
+			p.LargestMsgSize = size
+		}
+		p.lock.Unlock()
+		return nil
+	}
+}
+
 func (p *ProtocolState) updateWithPeers(peers []string, maxRound int) {
 	// every Round advertise one of my peer to all my peers
 	// succeed if heard from every one

@@ -7,6 +7,7 @@ import (
 	"RVR/message"
 	"bytes"
 	"fmt"
+	"sync"
 )
 
 func Sample(p *ProtocolState) map[uint64]float64{
@@ -32,6 +33,8 @@ func Sample(p *ProtocolState) map[uint64]float64{
 	msg := new(message.Message)
 	msg.Nonce = commit
 	msg.Type = "Sample Commitment"
+	sentList := make(map[string]bool)
+	localLock := sync.Mutex{}
 	for i := 0; i < p.l; i++ {
 		<-p.ticker
 
@@ -40,11 +43,26 @@ func Sample(p *ProtocolState) map[uint64]float64{
 		msg.Round = p.Round
 		p.lock.Unlock()
 		msg.Sender = p.MyId
-
 		msg.Sign(p.privateKey)
 
+
 		for _, id := range p.initView {
-			p.sendMsgToPeerAsync(*msg, id.Address)
+			go func(addr string){
+				localLock.Lock()
+				if _, ok := sentList[addr]; ok{
+					localLock.Unlock()
+					return
+				}
+				localLock.Unlock()
+
+				err := p.sendMsgToPeerWithTrial(*msg, addr, 1)
+				if err == nil{
+					localLock.Lock()
+					sentList[addr] = true
+					localLock.Unlock()
+				}
+			}(id.Address)
+			//p.sendMsgToPeerAsync(*msg, id.Address)
 		}
 	}
 
@@ -80,6 +98,7 @@ func Sample(p *ProtocolState) map[uint64]float64{
 	// line 5: send nonce to every node
 	msg.Nonce = nonce
 	msg.Type = "Sample Nonce"
+	sentList = make(map[string] bool)
 	for i := 0; i < p.l; i++ {
 		<-p.ticker
 
@@ -92,7 +111,22 @@ func Sample(p *ProtocolState) map[uint64]float64{
 		msg.Sign(p.privateKey)
 
 		for _, id := range p.initView {
-			p.sendMsgToPeerAsync(*msg, id.Address)
+			go func(addr string){
+				localLock.Lock()
+				if _, ok := sentList[addr]; ok{
+					localLock.Unlock()
+					return
+				}
+				localLock.Unlock()
+
+				err := p.sendMsgToPeerWithTrial(*msg, addr, 1)
+				if err == nil{
+					localLock.Lock()
+					sentList[addr] = true
+					localLock.Unlock()
+				}
+			}(id.Address)
+			//p.sendMsgToPeerAsync(*msg, id.Address)
 		}
 	}
 
@@ -155,6 +189,7 @@ func Sample(p *ProtocolState) map[uint64]float64{
 	nilMsg.Nonce = nonce
 	msg.Type = "Sample View"
 	nilMsg.Type = "Sample Nil Message"
+	sentList = make(map[string] bool)
 	for i := 0; i < p.l; i++ {
 		<-p.ticker
 
@@ -170,10 +205,40 @@ func Sample(p *ProtocolState) map[uint64]float64{
 		nilMsg.Sign(p.privateKey)
 
 		for _, id := range toSend {
-			p.sendMsgToPeerAsync(*msg, id.Address)
+			go func(addr string){
+				localLock.Lock()
+				if _, ok := sentList[addr]; ok{
+					localLock.Unlock()
+					return
+				}
+				localLock.Unlock()
+
+				err := p.sendMsgToPeerWithTrial(*msg, addr, 1)
+				if err == nil{
+					localLock.Lock()
+					sentList[addr] = true
+					localLock.Unlock()
+				}
+			}(id.Address)
+			//p.sendMsgToPeerAsync(*msg, id.Address)
 		}
 		for _, id := range toSendNull {
-			p.sendMsgToPeerAsync(*nilMsg, id.Address)
+			go func(addr string){
+				localLock.Lock()
+				if _, ok := sentList[addr]; ok{
+					localLock.Unlock()
+					return
+				}
+				localLock.Unlock()
+
+				err := p.sendMsgToPeerWithTrial(*msg, addr, 1)
+				if err == nil{
+					localLock.Lock()
+					sentList[addr] = true
+					localLock.Unlock()
+				}
+			}(id.Address)
+			//p.sendMsgToPeerAsync(*nilMsg, id.Address)
 		}
 	}
 

@@ -4,6 +4,7 @@ import (
 	"RVR/message"
 	"bufio"
 	"fmt"
+	"log"
 	"math"
 	"math/rand"
 	"os"
@@ -41,7 +42,7 @@ func (c *ControllerState) checkConnection() {
 	localLock := sync.Mutex{}
 	connectedPeers := make([]message.Identity, 0)
 	for _, peer := range c.PeerList {
-		go func (peer message.Identity){
+		go func(peer message.Identity) {
 			err := RpcCall(peer.Address, "ProtocolState.BlackHole", make([]byte, 0), nil, time.Second)
 			if err != nil {
 				fmt.Printf("Peer %s disconnected.\n", peer.Address)
@@ -60,11 +61,10 @@ func (c *ControllerState) checkConnection() {
 	c.lockHolder = ""
 	c.lock.Unlock()
 
-
 	connectedServers := make([]string, 0)
 
 	for _, server := range c.ServerList {
-		go func (server string){
+		go func(server string) {
 			err := RpcCall(server, "SpawnerState.BlackHole", make([]byte, 0), nil, time.Second)
 			if err != nil {
 				fmt.Printf("Server %s disconnected.\n", server)
@@ -281,34 +281,35 @@ func (c *ControllerState) report() (report string, fin bool, cons bool, round in
 			fmt.Printf("Panic Catched in report %s\n", r)
 		}
 	}()
+	log.Printf("Gathering Report...\n", )
 	statelen := 0
 	stateChan := make(chan *ProtocolState)
 	for _, peer := range c.PeerList {
 		statelen++
-		go func (addr string){
+		go func(addr string) {
 			newState := ProtocolState{}
-			err := RpcCall(addr, "ProtocolState.RetrieveState", 1, &newState, c.SetupParams.RoundDuration * time.Duration(c.SetupParams.L))
+			err := RpcCall(addr, "ProtocolState.RetrieveState", 1, &newState, c.SetupParams.RoundDuration*time.Duration(c.SetupParams.L))
 			if err != nil {
 				fmt.Printf("Report: Unable to connect to %s\n", addr)
 				stateChan <- nil
-			}else{
+			} else {
 				stateChan <- &newState
 			}
 		}(peer.Address)
 	}
-	if statelen != len(c.PeerList){
+	if statelen != len(c.PeerList) {
 		return "false, Unstable state\n", false, false, -1
 	}
 	state := make([]ProtocolState, statelen)
-	for i := 0; i < statelen; i++{
+	for i := 0; i < statelen; i++ {
 		s := <-stateChan
-		if s != nil{
+		if s != nil {
 			state[i] = *s
-		}else {
+		} else {
 			return "false, some nodes did not reply\n", false, false, -1
 		}
 	}
-
+	log.Printf("Analyzing Report...\n", )
 	analysis := Data{state, c.SetupParams}
 	return analysis.Report()
 }
@@ -344,9 +345,9 @@ func (c *ControllerState) StartListen() {
 				go c.StartProtocol(1, nil)
 			case "state":
 				go func() {
-					if len(c.PeerList) == 0{
+					if len(c.PeerList) == 0 {
 						fmt.Printf("Peer list is empty\n", )
-					}else{
+					} else {
 						// pick a random node to retrieve state
 						nodeAddr := c.PeerList[rand.Int()%len(c.PeerList)].Address
 						fmt.Printf(c.checkState(nodeAddr))
@@ -368,13 +369,16 @@ func (c *ControllerState) StartListen() {
 					c.PeerList = make([]message.Identity, 0)
 				}()
 			case "load":
-				go func(){
-					c.lock.Lock(); c.ServerList = SPAWNER_LIST; c.lock.Unlock(); fmt.Printf("default spawners loaded.\n")
+				go func() {
+					c.lock.Lock();
+					c.ServerList = SPAWNER_LIST;
+					c.lock.Unlock();
+					fmt.Printf("default spawners loaded.\n")
 				}()
 			case "spawn":
-				if len(c.ServerList) == 0{
+				if len(c.ServerList) == 0 {
 					fmt.Printf("No spawner found.\n", )
-				}else{
+				} else {
 					serverAddr := c.ServerList[rand.Int()%len(c.ServerList)]
 					c.Spawn(serverAddr, 1)
 				}
@@ -417,27 +421,51 @@ func (c *ControllerState) autoTest(size int, params ProtocolRPCSetupParams, stop
 	consensusReached := false
 	consensusTime := 3600 * time.Second
 	consensusRound := 0
+	running := true
+	stopTest := make(chan bool, 2)
 	startTime := time.Now()
-	for !(stopOnceConsensus && consensusReached) {
-		time.Sleep(10 * time.Second)
-		_report, fin, cons, round := c.report()
-		report = _report
-		if !consensusReached && cons {
-			consensusReached = true
-			consensusTime = time.Since(startTime)
-			consensusRound = round
+	// time monitor
+	go func() {
+		for running{
+			time.Sleep(10 * time.Second)
+			timePassed := time.Since(startTime)
+			if timePassed > 1800*time.Second {
+				stopTest <- true
+			} else {
+				fmt.Printf("time passed: %s \n", timePassed)
+			}
 		}
-		if fin {
-			// finished
-			break
+	}()
+
+	// fin monitor
+	go func() {
+		for running && !(stopOnceConsensus && consensusReached) {
+			time.Sleep(10 * time.Second)
+			log.Printf("checking test results...\n")
+			_report, fin, cons, round := c.report()
+			log.Printf("test results retrieved\n")
+			report = _report
+			if !consensusReached && cons {
+				consensusReached = true
+				consensusTime = time.Since(startTime)
+				consensusRound = round
+			}
+			if fin {
+				// finished
+				stopTest <- true
+				break
+			}
+			if !consensusReached{
+				log.Printf("consensus not reached.\n")
+			}else{
+				log.Printf("not finished.\n")
+			}
 		}
-		timePassed := time.Since(startTime)
-		if timePassed > 1800 * time.Second{
-			break
-		}else{
-			fmt.Printf("time passed: %s \n", timePassed)
-		}
-	}
+	}()
+
+	<-stopTest
+	running = false
+
 	fmt.Printf("Auto-test completed!\n")
 	fmt.Printf("%d, %d, %s, %d, %d\n", len(c.PeerList), len(c.ServerList), report, consensusTime, consensusRound)
 	return consensusReached
