@@ -338,7 +338,7 @@ func (c *ControllerState) StartListen() {
 			case "batch":
 				go c.batchTest()
 			case "auto":
-				go c.autoTest(10, DefaultSetupParams, false)
+				go c.autoTest(10, DefaultSetupParams, true)
 			case "setup":
 				go c.SetupProtocol(1, nil)
 			case "start":
