@@ -103,11 +103,14 @@ func (data *Data) byteCount(percentile float64) int {
 
 func (d *Data) Report() (report string, fin bool, cons bool, round int) {
 	if len(d.states) == 0 {
-		return "f", false, false, -1
+		fin = true
+		cons = true
+		round = -1
+	}else{
+		fin = d.checkFinished()
+		cons = d.checkConsensus()
+		round = d.states[0].Round
 	}
-	fin = d.checkFinished()
-	cons = d.checkConsensus()
-	round = d.states[0].Round
 	report = fmt.Sprintf("%t, %t, %d, %d, %f, %f, %d, %d, %f, %d, %d, %d, %d, %d, %d, %d",
 		fin,
 		cons,

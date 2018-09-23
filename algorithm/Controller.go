@@ -424,12 +424,18 @@ func (c *ControllerState) autoTest(size int, params ProtocolRPCSetupParams, stop
 		report = _report
 		if !consensusReached && cons {
 			consensusReached = true
-			consensusTime = time.Now().Sub(startTime)
+			consensusTime = time.Since(startTime)
 			consensusRound = round
 		}
-		if fin || time.Now().Sub(startTime) > 2000*time.Second {
+		if fin {
 			// finished
 			break
+		}
+		timePassed := time.Since(startTime)
+		if timePassed > 1800 * time.Second{
+			break
+		}else{
+			fmt.Printf("time passed: %s \n", timePassed)
 		}
 	}
 	fmt.Printf("Auto-test completed!\n")
