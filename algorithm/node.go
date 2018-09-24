@@ -226,6 +226,9 @@ func (p *ProtocolState) SendInMsg(msg message.Message, rtv *int) error {
 	if err != nil {
 		return err
 	}
+	if _, ok := p.idToAddrMap[msg.Sender.GetUUID()]; !ok{
+		return fmt.Errorf("Not in initview.\n")
+	}
 	p.lock.Lock()
 	defer p.lock.Unlock()
 	if msg.Round > p.Round + p.offset && p.CurrentProto != "Gossip"{
@@ -404,6 +407,21 @@ func (p *ProtocolState) addToInitView(id message.Identity) {
 	}
 }
 
+func (p *ProtocolState) removeFromInitView(addr string){
+	var pos = 0
+	found := false
+	for pos,_ = range p.initView{
+		if p.initView[pos].Address == addr{
+			found = true
+			break
+		}
+	}
+	if found{
+		delete(p.idToAddrMap, p.initView[pos].GetUUID())
+		p.initView = append(p.initView[:pos], p.initView[pos+1:]...)
+	}
+
+}
 func (p *ProtocolState) sendMsgToPeerAsync(m message.Message, addr string) {
 	go func() {
 		err := RpcCall(addr, "ProtocolState.SendInMsg", m, nil, p.roundDuration)
@@ -411,6 +429,9 @@ func (p *ProtocolState) sendMsgToPeerAsync(m message.Message, addr string) {
 		if err != nil {
 			p.lock.Lock()
 			p.FailToSend++
+			if err.Error() == "Not in initview.\n"{
+				p.removeFromInitView(addr)
+			}
 			p.lock.Unlock()
 		} else {
 			p.lock.Lock()
@@ -424,6 +445,8 @@ func (p *ProtocolState) sendMsgToPeerAsync(m message.Message, addr string) {
 		}
 	}()
 }
+
+
 
 func (p *ProtocolState) sendMsgToPeerWithTrial(m message.Message, addr string, trial int) error {
 	if trial <= 0{
