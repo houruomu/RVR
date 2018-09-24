@@ -16,11 +16,11 @@ import (
 // this packet is to monitor and coordinate the nodes
 
 var DefaultSetupParams = ProtocolRPCSetupParams{
-	400 * time.Millisecond,
-	2,
+	640 * time.Millisecond,
+	4,
 	0.01,
 	0.01,
-	2,
+	3,
 	2,
 	0.01,
 	message.Identity{},
