@@ -203,20 +203,28 @@ func (c *ControllerState) StartProtocol(ph1 int, ph2 *int) error {
 	}
 	c.lock.RUnlock()
 
-	time.Sleep(time.Duration(c.SetupParams.Offset) * c.SetupParams.RoundDuration)
+	time.Sleep(c.SetupParams.RoundDuration)
 	startedPeers := make([]message.Identity, 0)
+	localLock := sync.Mutex{}
 	for _, peer := range c.PeerList {
-		state := ProtocolState{}
-		err := RpcCall(peer.Address, "ProtocolState.RetrieveState", 1, &state, c.SetupParams.RoundDuration)
-		if err == nil && state.Round > 1 {
-			startedPeers = append(startedPeers, peer)
-		} else {
-			c.killNode(peer.Address)
-		}
+		go func(peer message.Identity) {
+			state := ProtocolState{}
+			err := RpcCall(peer.Address, "ProtocolState.RetrieveState", 1, &state, c.SetupParams.RoundDuration)
+			if err == nil && state.Round > 1 {
+				localLock.Lock()
+				startedPeers = append(startedPeers, peer)
+				localLock.Unlock()
+			} else {
+				c.killNode(peer.Address)
+			}
+		}(peer)
 	}
+
 	c.lock.Lock()
+	localLock.Lock()
 	c.lockHolder = "StartProtocol"
 	c.PeerList = startedPeers
+	localLock.Unlock()
 	c.lock.Unlock()
 	return nil
 }
@@ -335,6 +343,10 @@ func (c *ControllerState) StartListen() {
 		for scanner.Scan() {
 			text := scanner.Text()
 			switch text {
+			case "server":
+				fmt.Printf("Connected Servers: %d\n", len(c.ServerList))
+			case "peer":
+				fmt.Printf("Connected Peers: %d\n", len(c.PeerList))
 			case "batch":
 				go c.batchTest()
 			case "auto":
@@ -461,6 +473,7 @@ func (c *ControllerState) autoTest(size int, params ProtocolRPCSetupParams, stop
 				log.Printf("not finished.\n")
 			}
 		}
+		fmt.Printf("fin monitor exiting", )
 	}()
 
 	<-stopTest

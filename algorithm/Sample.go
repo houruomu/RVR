@@ -163,7 +163,7 @@ func Sample(p *ProtocolState) map[uint64]float64{
 		}
 
 		if _, ok := commitMap[m.Sender.GetUUID()]; !ok{
-			print("Message invalid: commitment not received\n")
+			print("Message invalid: commitment not received, from %s\n",m.Sender.Address)
 			continue
 		}
 

@@ -186,6 +186,7 @@ func (p *ProtocolState) peerMonitor() {
 				peerChan <- &peer
 			} else {
 				fmt.Printf("dropping peer %s\n", peer.Address)
+				delete(p.idToAddrMap, peer.GetUUID())
 				peerChan <- nil
 			}
 		}(peer)
@@ -227,7 +228,7 @@ func (p *ProtocolState) SendInMsg(msg message.Message, rtv *int) error {
 	}
 	p.lock.Lock()
 	defer p.lock.Unlock()
-	if msg.Round > p.Round + p.offset + 1 && p.CurrentProto != "Gossip"{
+	if msg.Round > p.Round + p.offset && p.CurrentProto != "Gossip"{
 		fmt.Printf("%s: unsynchronized, terminating, at round %d, received msg at round %d from %s\n",
 			p.MyId.Address, p.Round, msg.Round, msg.Sender.Address)
 		p.Exit(1, nil)
