@@ -8,7 +8,7 @@ import (
 )
 
 func main() {
-	fmt.Printf("version 0.4.2\n")
+	fmt.Printf("version 0.4.3\n")
 	var exitSignal = make(chan bool, 4)
 	mode := flag.String("mode", "node", "choose a value between node/controller")
 	controlAddress := flag.String("server", "172.24.200.200:9696", "controller's address")

@@ -43,7 +43,7 @@ func (c *ControllerState) checkConnection() {
 	connectedPeers := make([]message.Identity, 0)
 	for _, peer := range c.PeerList {
 		go func(peer message.Identity) {
-			err := RpcCall(peer.Address, "ProtocolState.BlackHole", make([]byte, 0), nil, time.Second)
+			err := RpcCall(peer.Address, "ProtocolState.BlackHole", make([]byte, 0), nil, 2 * time.Second)
 			if err != nil {
 				fmt.Printf("Peer %s disconnected.\n", peer.Address)
 				return
@@ -65,7 +65,7 @@ func (c *ControllerState) checkConnection() {
 
 	for _, server := range c.ServerList {
 		go func(server string) {
-			err := RpcCall(server, "SpawnerState.BlackHole", make([]byte, 0), nil, time.Second)
+			err := RpcCall(server, "SpawnerState.BlackHole", make([]byte, 0), nil, 2 * time.Second)
 			if err != nil {
 				fmt.Printf("Server %s disconnected.\n", server)
 				return
@@ -76,7 +76,7 @@ func (c *ControllerState) checkConnection() {
 		}(server)
 	}
 
-	time.Sleep(time.Second)
+	time.Sleep(5 * time.Second)
 
 	c.lock.Lock()
 	c.lockHolder = "checkConnection"
@@ -421,6 +421,12 @@ func (c *ControllerState) autoTest(size int, params ProtocolRPCSetupParams, stop
 	c.KillNodes(1, nil)
 	c.PeerList = make([]message.Identity, 0)
 	for len(c.PeerList) < size {
+		if (len(c.ServerList) == 0){
+			c.lock.Lock();
+			c.ServerList = SPAWNER_LIST;
+			c.lock.Unlock();
+			fmt.Printf("default spawners loaded.\n")
+		}
 		c.spawnEvenly(size - len(c.PeerList))
 		time.Sleep(10 * time.Second)
 	}
