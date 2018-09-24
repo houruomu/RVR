@@ -203,7 +203,7 @@ func (c *ControllerState) StartProtocol(ph1 int, ph2 *int) error {
 	}
 	c.lock.RUnlock()
 
-	time.Sleep(c.SetupParams.RoundDuration)
+	time.Sleep(c.SetupParams.RoundDuration * time.Duration(c.SetupParams.Offset))
 	startedPeers := make([]message.Identity, 0)
 	localLock := sync.Mutex{}
 	for _, peer := range c.PeerList {
@@ -221,10 +221,14 @@ func (c *ControllerState) StartProtocol(ph1 int, ph2 *int) error {
 		}(peer)
 	}
 
+	time.Sleep(c.SetupParams.RoundDuration)
+
+
 	c.lock.Lock()
 	localLock.Lock()
 	c.lockHolder = "StartProtocol"
 	c.PeerList = startedPeers
+	c.lockHolder = ""
 	localLock.Unlock()
 	c.lock.Unlock()
 	return nil
@@ -339,6 +343,7 @@ func (c *ControllerState) StartListen() {
 			c.checkConnection()
 		}
 	}()
+
 	for {
 		scanner := bufio.NewScanner(os.Stdin)
 		for scanner.Scan() {
@@ -435,15 +440,17 @@ func (c *ControllerState) autoTest(size int, params ProtocolRPCSetupParams, stop
 	consensusTime := 3600 * time.Second
 	consensusRound := 0
 	running := true
-	stopTest := make(chan bool, 2)
+	stopChan := make(chan bool, 2)
 	startTime := time.Now()
+
 	// time monitor
 	go func() {
+		defer func() {stopChan <- true}()
 		for running{
 			time.Sleep(10 * time.Second)
 			timePassed := time.Since(startTime)
 			if timePassed > 1800*time.Second {
-				stopTest <- true
+				break
 			} else {
 				fmt.Printf("time passed: %s \n", timePassed)
 			}
@@ -452,6 +459,7 @@ func (c *ControllerState) autoTest(size int, params ProtocolRPCSetupParams, stop
 
 	// fin monitor
 	go func() {
+		defer func() {stopChan <- true}()
 		for running && !(stopOnceConsensus && consensusReached) {
 			time.Sleep(10 * time.Second)
 			log.Printf("checking test results...\n")
@@ -465,7 +473,6 @@ func (c *ControllerState) autoTest(size int, params ProtocolRPCSetupParams, stop
 			}
 			if fin {
 				// finished
-				stopTest <- true
 				break
 			}
 			if !consensusReached{
@@ -474,14 +481,15 @@ func (c *ControllerState) autoTest(size int, params ProtocolRPCSetupParams, stop
 				log.Printf("not finished.\n")
 			}
 		}
-		fmt.Printf("fin monitor exiting", )
 	}()
 
-	<-stopTest
+	<-stopChan
+	fmt.Printf("Auto-test completed!\n")
+
 	running = false
 
-	fmt.Printf("Auto-test completed!\n")
 	fmt.Printf("%d, %d, %s, %d, %d\n", len(c.PeerList), len(c.ServerList), report, consensusTime, consensusRound)
+	c.KillNodes(1, nil)
 	return consensusReached
 }
 
