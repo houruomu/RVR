@@ -215,6 +215,7 @@ func (c *ControllerState) StartProtocol(ph1 int, ph2 *int) error {
 				startedPeers = append(startedPeers, peer)
 				localLock.Unlock()
 			} else {
+				fmt.Printf("Peer failed to start: %s\n", peer.Address)
 				c.killNode(peer.Address)
 			}
 		}(peer)
