@@ -138,6 +138,16 @@ type ElectionState struct {
 	m              int // number of hashes per rounds
 }
 
+func electionSketch(p *ProtocolState, m int) (round int) {
+	round = 1
+	round += p.l
+	round += p.offset
+	round += 6*(p.offset+p.l)
+	round += p.l
+	round += p.offset
+	return round
+}
+
 func DoElection(protocol *ProtocolState, m int) message.Identity {
 	es := ElectionState{protocol, nil, 0, m}
 	return es.DoElection()

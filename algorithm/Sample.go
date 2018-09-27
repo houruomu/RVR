@@ -10,6 +10,17 @@ import (
 	"sync"
 )
 
+func sampleSketch(p *ProtocolState) (round int){
+	round = 1
+	round += p.l
+	round += p.offset
+	round += p.l
+	round += p.offset
+	round += p.l
+	round += p.offset
+	return round
+}
+
 func Sample(p *ProtocolState) map[uint64]float64{
 	<- p.ticker
 	p.lock.Lock()

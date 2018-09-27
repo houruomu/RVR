@@ -335,7 +335,7 @@ func (p *ProtocolState) Setup(state ProtocolRPCSetupParams, rtv *int) error {
 	p.delta = state.Delta
 	p.initView = state.InitView
 	// initialize the state parameters
-	p.Round = 1
+	p.Round = 0
 	p.inQueue = make([]message.Message, 0)
 	p.View = make([]uint64, 0)
 	p.idToAddrMap = make(map[uint64]string)
@@ -372,7 +372,7 @@ func (p *ProtocolState) Start(command int, rtv *int) error {
 	}()
 	p.StartTime = time.Now()
 	go func() {
-		for !p.Finished {
+		for !p.Finished && !p.Malicious {
 			time.Sleep(10 * time.Second)
 			select {
 			case <-p.ExitSignal:
@@ -382,6 +382,11 @@ func (p *ProtocolState) Start(command int, rtv *int) error {
 			}
 			//p.peerMonitor()
 			p.localMonitor(p.l)
+		}
+		if p.Malicious{
+			fmt.Printf("%s is marked as Malicious. \n", p.MyId.Address)
+		}else{
+			fmt.Printf("%s finished. \n", p.MyId.Address)
 		}
 	}()
 	return nil
@@ -508,6 +513,14 @@ func (p *ProtocolState) updateWithPeers(peers []string, maxRound int) {
 	}
 }
 
+func (p *ProtocolState) sketch() (round int, duration time.Duration){
+	// sketch the run and return the computed duration
+	repetity := int(6.0*math.Log(2/p.delta) + 1)
+	round = repetity * (1 + electionSketch(p, 1) + sampleSketch(p) + gossipSketch(p))
+	duration = time.Duration(round) * p.roundDuration
+	return
+}
+
 func (p *ProtocolState) viewReconciliation() {
 	fmt.Printf("%s starting RVR protocol, initial View length: %d\n", p.MyId.Address, len(p.View))
 	repetity := int(6.0*math.Log(2/p.delta) + 1)
@@ -530,6 +543,9 @@ func (p *ProtocolState) viewReconciliation() {
 		p.CurrentProto = "Election"
 		p.lock.Unlock()
 		leader := DoElection(p, 1)
+		if leader.Public_key == nil{
+			fmt.Printf("Leader Election failed, round %d.\n", p.Round)
+		}
 
 		p.lock.Lock()
 		p.CurrentProto = "Sample"
@@ -586,6 +602,8 @@ func (p *ProtocolState) viewReconciliation() {
 	fmt.Printf("%s finishing RVR protocol, final View length: %d\n", p.MyId.Address, len(p.View))
 	p.Finished = true
 	p.FinishTime = time.Now()
+	pRound, pTime := p.sketch()
+	fmt.Printf("Proposed Rounds: %d, actual rounds: %d; proposed time %s, actual time %s\n", pRound, p.Round, pTime, p.FinishTime.Sub(p.StartTime) )
 }
 
 func StartNode(controlAddress string, exitSignal chan bool) *ProtocolState {

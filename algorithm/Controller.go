@@ -14,7 +14,7 @@ import (
 )
 
 // this packet is to monitor and coordinate the nodes
-
+const MAX_TRY = 10
 var DefaultSetupParams = ProtocolRPCSetupParams{
 	640 * time.Millisecond,
 	4,
@@ -36,7 +36,8 @@ type ControllerState struct {
 	NetworkMetric []PingValueReport
 	lock          sync.RWMutex
 	lockHolder    string // completely for debugging purpose
-	maliciousMap  map[uint64] bool
+	maliciousMap  map[uint64]bool
+	errorCount    map[string]int
 }
 
 func (c *ControllerState) checkConnection() {
@@ -62,28 +63,6 @@ func (c *ControllerState) checkConnection() {
 	//c.lockHolder = ""
 	//c.lock.Unlock()
 
-	//connectedServers := make([]string, 0)
-	//
-	//for _, server := range c.ServerList {
-	//	go func(server string) {
-	//		err := RpcCall(server, "SpawnerState.BlackHole", make([]byte, 0), nil, 2 * time.Second)
-	//		if err != nil {
-	//			fmt.Printf("Server %s disconnected.\n", server)
-	//			return
-	//		}
-	//		localLock.Lock()
-	//		defer localLock.Unlock()
-	//		connectedServers = append(connectedServers, server)
-	//	}(server)
-	//}
-	//
-	//time.Sleep(5 * time.Second)
-	//
-	//c.lock.Lock()
-	//c.lockHolder = "checkConnection"
-	//c.ServerList = connectedServers
-	//c.lockHolder = ""
-	//c.lock.Unlock()
 }
 
 func (c *ControllerState) spawnEvenly(count int) {
@@ -113,6 +92,37 @@ func (c *ControllerState) spawnEvenly(count int) {
 
 func (c *ControllerState) Spawn(addr string, count int) {
 	RpcCall(addr, "SpawnerState.Spawn", count, nil, time.Second)
+}
+
+func (c *ControllerState) load() {
+	c.lock.Lock()
+	c.lockHolder = "load"
+	c.ServerList = SPAWNER_LIST
+	c.lockHolder = ""
+	c.lock.Unlock()
+
+	connectedServers := make([]string, 0)
+	localLock := sync.Mutex{}
+	for _, server := range c.ServerList {
+		go func(server string) {
+			err := RpcCall(server, "SpawnerState.BlackHole", make([]byte, 0), nil, 2*time.Second)
+			if err != nil {
+				fmt.Printf("Server %s disconnected.\n", server)
+				return
+			}
+			localLock.Lock()
+			defer localLock.Unlock()
+			connectedServers = append(connectedServers, server)
+		}(server)
+	}
+
+	time.Sleep(5 * time.Second)
+
+	c.lock.Lock()
+	c.lockHolder = "load"
+	c.ServerList = connectedServers
+	c.lockHolder = ""
+	c.lock.Unlock()
 }
 
 func (c *ControllerState) RegisterServer(addr string, rtv *int) error {
@@ -188,7 +198,7 @@ func (c *ControllerState) KillNodes(ph1 int, ph2 *int) error {
 		c.killNode(c.PeerList[i].Address)
 	}
 	c.PeerList = make([]message.Identity, 0)
-	c.maliciousMap = make(map[uint64] bool)
+	c.maliciousMap = make(map[uint64]bool)
 	c.lockHolder = ""
 	return nil
 }
@@ -215,7 +225,7 @@ func (c *ControllerState) StartProtocol(ph1 int, ph2 *int) error {
 		go func(peer message.Identity) {
 			state := ProtocolState{}
 			err := RpcCall(peer.Address, "ProtocolState.RetrieveState", 1, &state, c.SetupParams.RoundDuration)
-			if err == nil && state.Round > 1 {
+			if err == nil && state.Round > 0 {
 				localLock.Lock()
 				startedPeers = append(startedPeers, peer)
 				localLock.Unlock()
@@ -227,7 +237,6 @@ func (c *ControllerState) StartProtocol(ph1 int, ph2 *int) error {
 	}
 
 	time.Sleep(c.SetupParams.RoundDuration)
-
 
 	c.lock.Lock()
 	localLock.Lock()
@@ -304,6 +313,9 @@ func (c *ControllerState) report() (report string, fin bool, cons bool, round in
 	statelen := 0
 	stateChan := make(chan *ProtocolState)
 	for _, peer := range c.PeerList {
+		if c.errorCount[peer.Address] > MAX_TRY{
+			c.maliciousMap[peer.GetUUID()] = true
+		}
 		if c.maliciousMap[peer.GetUUID()] {
 			continue
 		}
@@ -312,12 +324,18 @@ func (c *ControllerState) report() (report string, fin bool, cons bool, round in
 			newState := ProtocolState{}
 			err := RpcCall(addr, "ProtocolState.RetrieveState", 1, &newState, c.SetupParams.RoundDuration*time.Duration(c.SetupParams.L))
 			if err != nil {
+				c.lock.Lock()
+				c.errorCount[addr]++
+				c.lock.Unlock()
 				fmt.Printf("Report: Unable to connect to %s\n", addr)
 				stateChan <- nil
 			} else {
+				c.lock.Lock()
+				c.errorCount[addr] = 0
+				c.lock.Unlock()
 				stateChan <- &newState
 			}
-			if newState.Malicious{
+			if newState.Malicious {
 				c.lock.Lock()
 				c.maliciousMap[newState.MyId.GetUUID()] = true
 				c.lock.Unlock()
@@ -395,14 +413,10 @@ func (c *ControllerState) StartListen() {
 			case "reset":
 				go func() {
 					c.KillNodes(1, nil)
-					c.PeerList = make([]message.Identity, 0)
 				}()
 			case "load":
 				go func() {
-					c.lock.Lock();
-					c.ServerList = SPAWNER_LIST;
-					c.lock.Unlock();
-					fmt.Printf("default spawners loaded.\n")
+					c.load()
 				}()
 			case "spawn":
 				if len(c.ServerList) == 0 {
@@ -430,9 +444,8 @@ func (c *ControllerState) autoTest(size int, params ProtocolRPCSetupParams, stop
 		}
 	}()
 	c.KillNodes(1, nil)
-	c.PeerList = make([]message.Identity, 0)
 	for len(c.PeerList) < size {
-		if (len(c.ServerList) == 0){
+		if (len(c.ServerList) == 0) {
 			c.lock.Lock();
 			c.ServerList = SPAWNER_LIST;
 			c.lock.Unlock();
@@ -462,8 +475,8 @@ func (c *ControllerState) autoTest(size int, params ProtocolRPCSetupParams, stop
 
 	// time monitor
 	go func() {
-		defer func() {stopChan <- true}()
-		for running{
+		defer func() { stopChan <- true }()
+		for running {
 			time.Sleep(10 * time.Second)
 			timePassed := time.Since(startTime)
 			if timePassed > 1800*time.Second {
@@ -476,7 +489,7 @@ func (c *ControllerState) autoTest(size int, params ProtocolRPCSetupParams, stop
 
 	// fin monitor
 	go func() {
-		defer func() {stopChan <- true}()
+		defer func() { stopChan <- true }()
 		for running && !(stopOnceConsensus && consensusReached) {
 			time.Sleep(10 * time.Second)
 			log.Printf("checking test results...\n")
@@ -492,9 +505,9 @@ func (c *ControllerState) autoTest(size int, params ProtocolRPCSetupParams, stop
 				// finished
 				break
 			}
-			if !consensusReached{
+			if !consensusReached {
 				log.Printf("consensus not reached.\n")
-			}else{
+			} else {
 				log.Printf("not finished.\n")
 			}
 		}
@@ -504,8 +517,14 @@ func (c *ControllerState) autoTest(size int, params ProtocolRPCSetupParams, stop
 	fmt.Printf("Auto-test completed!\n")
 
 	running = false
+	maliciousCount := 0
+	for _, t := range c.maliciousMap {
+		if t {
+			maliciousCount++
+		}
+	}
 
-	fmt.Printf("%d, %d, %s, %d, %d\n", len(c.PeerList), len(c.ServerList), report, consensusTime, consensusRound)
+	fmt.Printf("%d,%d, %d, %s, %d, %d\n", len(c.PeerList), maliciousCount, len(c.ServerList), report, consensusTime, consensusRound)
 	c.KillNodes(1, nil)
 	return consensusReached
 }

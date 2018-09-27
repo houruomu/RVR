@@ -3,10 +3,15 @@ package algorithm
 import (
 	"RVR/message"
 	"bytes"
-	"fmt"
 	"math"
 	"math/rand"
 )
+
+func gossipSketch(p *ProtocolState) (round int){
+	round = 1
+	round += p.x
+	return round
+}
 
 func Gossip(p *ProtocolState, leader *message.Identity) []uint64{
 
@@ -18,7 +23,6 @@ func Gossip(p *ProtocolState, leader *message.Identity) []uint64{
 
 	var proposal []uint64
 	if leader.Public_key == nil{
-		fmt.Printf("Leader Election failed, round %d.\n", p.Round)
 		for i := 0; i < p.x; i++{
 			<- p.ticker
 			p.lock.Lock()
