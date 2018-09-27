@@ -313,7 +313,9 @@ func (c *ControllerState) report() (report string, fin bool, cons bool, round in
 	statelen := 0
 	stateChan := make(chan *ProtocolState)
 	for _, peer := range c.PeerList {
-		if c.errorCount[peer.Address] > MAX_TRY{
+		if count,ok := c.errorCount[peer.Address]; !ok{
+			c.errorCount[peer.Address] = 1
+		}else if count > MAX_TRY{
 			c.maliciousMap[peer.GetUUID()] = true
 		}
 		if c.maliciousMap[peer.GetUUID()] {
@@ -358,7 +360,8 @@ func (c *ControllerState) report() (report string, fin bool, cons bool, round in
 
 func (c *ControllerState) StartListen() {
 	c.PeerList = make([]message.Identity, 0)
-
+	c.maliciousMap = make(map[uint64]bool)
+	c.errorCount = make(map[string] int)
 	portString := ListenRPC(":9696", c, c.ExitSignal)
 	myPort := portString[strings.LastIndex(portString, ":"):]
 	myIP := GetOutboundAddr()
