@@ -36,53 +36,54 @@ type ControllerState struct {
 	NetworkMetric []PingValueReport
 	lock          sync.RWMutex
 	lockHolder    string // completely for debugging purpose
+	maliciousMap  map[uint64] bool
 }
 
 func (c *ControllerState) checkConnection() {
-	localLock := sync.Mutex{}
-	connectedPeers := make([]message.Identity, 0)
-	for _, peer := range c.PeerList {
-		go func(peer message.Identity) {
-			err := RpcCall(peer.Address, "ProtocolState.BlackHole", make([]byte, 0), nil, 2 * time.Second)
-			if err != nil {
-				fmt.Printf("Peer %s disconnected.\n", peer.Address)
-				return
-			}
-			localLock.Lock()
-			defer localLock.Unlock()
-			connectedPeers = append(connectedPeers, peer)
-		}(peer)
-	}
-	time.Sleep(time.Second)
+	//localLock := sync.Mutex{}
+	//connectedPeers := make([]message.Identity, 0)
+	//for _, peer := range c.PeerList {
+	//	go func(peer message.Identity) {
+	//		err := RpcCall(peer.Address, "ProtocolState.BlackHole", make([]byte, 0), nil, 2 * time.Second)
+	//		if err != nil {
+	//			fmt.Printf("Peer %s disconnected.\n", peer.Address)
+	//			return
+	//		}
+	//		localLock.Lock()
+	//		defer localLock.Unlock()
+	//		connectedPeers = append(connectedPeers, peer)
+	//	}(peer)
+	//}
+	//time.Sleep(4 * time.Second)
+	//
+	//c.lock.Lock()
+	//c.lockHolder = "checkConnection"
+	//c.PeerList = connectedPeers
+	//c.lockHolder = ""
+	//c.lock.Unlock()
 
-	c.lock.Lock()
-	c.lockHolder = "checkConnection"
-	c.PeerList = connectedPeers
-	c.lockHolder = ""
-	c.lock.Unlock()
-
-	connectedServers := make([]string, 0)
-
-	for _, server := range c.ServerList {
-		go func(server string) {
-			err := RpcCall(server, "SpawnerState.BlackHole", make([]byte, 0), nil, 2 * time.Second)
-			if err != nil {
-				fmt.Printf("Server %s disconnected.\n", server)
-				return
-			}
-			localLock.Lock()
-			defer localLock.Unlock()
-			connectedServers = append(connectedServers, server)
-		}(server)
-	}
-
-	time.Sleep(5 * time.Second)
-
-	c.lock.Lock()
-	c.lockHolder = "checkConnection"
-	c.ServerList = connectedServers
-	c.lockHolder = ""
-	c.lock.Unlock()
+	//connectedServers := make([]string, 0)
+	//
+	//for _, server := range c.ServerList {
+	//	go func(server string) {
+	//		err := RpcCall(server, "SpawnerState.BlackHole", make([]byte, 0), nil, 2 * time.Second)
+	//		if err != nil {
+	//			fmt.Printf("Server %s disconnected.\n", server)
+	//			return
+	//		}
+	//		localLock.Lock()
+	//		defer localLock.Unlock()
+	//		connectedServers = append(connectedServers, server)
+	//	}(server)
+	//}
+	//
+	//time.Sleep(5 * time.Second)
+	//
+	//c.lock.Lock()
+	//c.lockHolder = "checkConnection"
+	//c.ServerList = connectedServers
+	//c.lockHolder = ""
+	//c.lock.Unlock()
 }
 
 func (c *ControllerState) spawnEvenly(count int) {
@@ -126,10 +127,11 @@ func (c *ControllerState) RegisterServer(addr string, rtv *int) error {
 
 func (c *ControllerState) Register(id message.Identity, rtv *int) error {
 	c.lock.Lock()
+	defer c.lock.Unlock()
 	c.lockHolder = "Register"
 	c.PeerList = append(c.PeerList, id)
+	c.maliciousMap[id.GetUUID()] = false
 	c.lockHolder = ""
-	c.lock.Unlock()
 	fmt.Printf("New Peer registered at controller: %s\n", id.Address)
 	return nil
 }
@@ -179,12 +181,15 @@ func (c *ControllerState) killNode(addr string) {
 }
 
 func (c *ControllerState) KillNodes(ph1 int, ph2 *int) error {
-	c.lock.RLock()
+	c.lock.Lock()
 	c.lockHolder = "KillNodes"
-	defer c.lock.RUnlock()
+	defer c.lock.Unlock()
 	for i, _ := range c.PeerList {
 		c.killNode(c.PeerList[i].Address)
 	}
+	c.PeerList = make([]message.Identity, 0)
+	c.maliciousMap = make(map[uint64] bool)
+	c.lockHolder = ""
 	return nil
 }
 
@@ -228,6 +233,7 @@ func (c *ControllerState) StartProtocol(ph1 int, ph2 *int) error {
 	localLock.Lock()
 	c.lockHolder = "StartProtocol"
 	c.PeerList = startedPeers
+	fmt.Printf("started peers: %d\n", len(c.PeerList))
 	c.lockHolder = ""
 	localLock.Unlock()
 	c.lock.Unlock()
@@ -298,6 +304,9 @@ func (c *ControllerState) report() (report string, fin bool, cons bool, round in
 	statelen := 0
 	stateChan := make(chan *ProtocolState)
 	for _, peer := range c.PeerList {
+		if c.maliciousMap[peer.GetUUID()] {
+			continue
+		}
 		statelen++
 		go func(addr string) {
 			newState := ProtocolState{}
@@ -308,10 +317,12 @@ func (c *ControllerState) report() (report string, fin bool, cons bool, round in
 			} else {
 				stateChan <- &newState
 			}
+			if newState.Malicious{
+				c.lock.Lock()
+				c.maliciousMap[newState.MyId.GetUUID()] = true
+				c.lock.Unlock()
+			}
 		}(peer.Address)
-	}
-	if statelen != len(c.PeerList) {
-		return "false, Unstable state\n", false, false, -1
 	}
 	state := make([]ProtocolState, statelen)
 	for i := 0; i < statelen; i++ {

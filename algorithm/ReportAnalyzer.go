@@ -24,6 +24,9 @@ func (data *Data) checkConsensus() bool {
 	var lastWrongState *ProtocolState
 	wrong := 0
 	for i, _ := range data.states {
+		if data.states[i].Malicious{
+			continue
+		}
 		if len(data.states[i].View) != len(data.states[0].View) {
 			lastWrongState = &data.states[i]
 			wrong++
@@ -49,7 +52,7 @@ func (data *Data) checkConsensus() bool {
 
 func (data *Data) checkFinished() bool {
 	for i, _ := range data.states {
-		if !data.states[i].Finished {
+		if !data.states[i].Finished && !data.states[i].Malicious {
 			return false
 		}
 	}
@@ -84,6 +87,9 @@ func (data *Data) time(percentile float64) time.Duration {
 }
 
 func (data *Data) msgCount(percentile float64) int {
+	if len(data.states) == 0 {
+		return 0;
+	}
 	counts := make([]int, len(data.states))
 	for i, _ := range data.states {
 		counts[i] = data.states[i].MsgCount
@@ -93,6 +99,9 @@ func (data *Data) msgCount(percentile float64) int {
 }
 
 func (data *Data) byteCount(percentile float64) int {
+	if len(data.states) == 0 {
+		return 0;
+	}
 	counts := make([]int, len(data.states))
 	for i, _ := range data.states {
 		counts[i] = data.states[i].ByteCount

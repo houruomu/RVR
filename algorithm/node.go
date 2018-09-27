@@ -47,6 +47,7 @@ type ProtocolState struct {
 	CurrentProto string
 
 	// protocol measurement data
+	Malicious      bool
 	MsgCount       int
 	ByteCount      int
 	LargestMsgSize int
@@ -93,7 +94,7 @@ func (p *ProtocolState) String() string {
 		"largest message size: %d\n"+
 		"message received: %d\n"+
 		"view size: %d\n"+
-		"CurrentProto: %s\n" +
+		"CurrentProto: %s\n"+
 		"-----------------------\n",
 		p.MyId.GetUUID(), p.MyId.Address, p.Round, p.Finished, p.MsgCount, p.ByteCount, p.LargestMsgSize, p.MsgReceived, len(p.View), p.CurrentProto)
 }
@@ -115,13 +116,13 @@ func (p *ProtocolState) testPing(size int, addr string, timeout time.Duration, r
 	startTime := time.Now()
 	err := RpcCall(addr, "ProtocolState.BlackHole", data, nil, timeout)
 	if err != nil {
-		if rtv != nil{
+		if rtv != nil {
 			rtv <- -1
 		}
 		return -1
-	}else{
+	} else {
 		finTime := int(time.Now().Sub(startTime))
-		if rtv != nil{
+		if rtv != nil {
 			rtv <- finTime
 		}
 		return finTime
@@ -139,7 +140,7 @@ func (p *ProtocolState) pingReport(size int) PingValueReport {
 		}(peer.Address)
 	}
 	report := make(PingValueReport, reportLen)
-	for i := 0; i < reportLen; i++{
+	for i := 0; i < reportLen; i++ {
 		report[i] = <-reportChan
 	}
 	return report
@@ -155,6 +156,7 @@ func (p *ProtocolState) PingReport(size int, rtv *int) error {
 
 func (p *ProtocolState) localMonitor(recur int) bool {
 	if recur == 0 {
+		p.Malicious = true
 		return false
 	}
 	report := p.pingReport(2000)
@@ -173,34 +175,38 @@ func (p *ProtocolState) localMonitor(recur int) bool {
 	}
 }
 
-func (p *ProtocolState) peerMonitor() {
-	newPeerList := make([]message.Identity, 0)
-	peerChan := make(chan *message.Identity)
-	listLen := 0
-	// no need lock since we are dealing with values only
-	for _, peer := range p.initView {
-		listLen++
-		go func(peer message.Identity){
-			err := RpcCall(peer.Address, "ProtocolState.BlackHole", make([]byte, 1), nil, p.roundDuration * time.Duration(p.l))
-			if err == nil {
-				peerChan <- &peer
-			} else {
-				fmt.Printf("dropping peer %s\n", peer.Address)
-				delete(p.idToAddrMap, peer.GetUUID())
-				peerChan <- nil
-			}
-		}(peer)
-	}
-	for i := 0; i < listLen; i++{
-		p := <- peerChan
-		if p != nil{
-			newPeerList = append(newPeerList, *p)
-		}
-	}
-	p.lock.Lock()
-	p.initView = newPeerList
-	p.lock.Unlock()
-}
+//func (p *ProtocolState) peerMonitor() {
+//	newPeerList := make([]message.Identity, 0)
+//	peerChan := make(chan *message.Identity)
+//	listLen := 0
+//	// no need lock since we are dealing with values only
+//	for _, peer := range p.initView {
+//		listLen++
+//		go func(peer message.Identity) {
+//			tic := time.Tick(p.roundDuration)
+//			for i := 0; i < p.l; i++ {
+//				<-tic
+//				err := RpcCall(peer.Address, "ProtocolState.BlackHole", make([]byte, 1), nil, p.roundDuration)
+//				if err == nil {
+//					peerChan <- &peer
+//					break
+//				}
+//			}
+//			fmt.Printf("dropping peer %s\n", peer.Address)
+//			delete(p.idToAddrMap, peer.GetUUID())
+//			peerChan <- nil
+//		}(peer)
+//	}
+//	for i := 0; i < listLen; i++ {
+//		p := <-peerChan
+//		if p != nil {
+//			newPeerList = append(newPeerList, *p)
+//		}
+//	}
+//	p.lock.Lock()
+//	p.initView = newPeerList
+//	p.lock.Unlock()
+//}
 
 func (p *ProtocolState) BlackHole(msg []byte, rtv *int) error {
 	// this is a blackhole function for measuring ping value
@@ -226,16 +232,16 @@ func (p *ProtocolState) SendInMsg(msg message.Message, rtv *int) error {
 	if err != nil {
 		return err
 	}
-	if _, ok := p.idToAddrMap[msg.Sender.GetUUID()]; !ok{
+	if _, ok := p.idToAddrMap[msg.Sender.GetUUID()]; !ok {
 		return fmt.Errorf("Not in initview.\n")
 	}
 	p.lock.Lock()
 	defer p.lock.Unlock()
-	if msg.Round > p.Round + p.offset && p.CurrentProto != "Gossip"{
-		fmt.Printf("%s: unsynchronized, terminating, at round %d, received msg at round %d from %s\n",
+	if msg.Round > p.Round+p.offset && p.CurrentProto != "Gossip" {
+		fmt.Printf("%s: unsynchronized, Malicious, at round %d, received msg at round %d from %s\n",
 			p.MyId.Address, p.Round, msg.Round, msg.Sender.Address)
-		p.Exit(1, nil)
-	}else{
+		p.Malicious = true
+	} else {
 		p.inQueue = append(p.inQueue, msg)
 		p.MsgReceived++
 	}
@@ -311,7 +317,7 @@ func (p *ProtocolState) GetReady() {
 	p.MyId = message.Identity{myIP + myPort, x509.MarshalPKCS1PublicKey(&p.privateKey.PublicKey)}
 
 	// report to controller
-	RpcCall(p.ControlAddress, "ControllerState.Register", p.MyId, nil, p.roundDuration * time.Duration(p.l))
+	RpcCall(p.ControlAddress, "ControllerState.Register", p.MyId, nil, p.roundDuration*time.Duration(p.l))
 	fmt.Printf("Node ready to receive instructions, Address: %s\n", p.MyId.Address)
 
 }
@@ -366,7 +372,7 @@ func (p *ProtocolState) Start(command int, rtv *int) error {
 	}()
 	p.StartTime = time.Now()
 	go func() {
-		for {
+		for !p.Finished {
 			time.Sleep(10 * time.Second)
 			select {
 			case <-p.ExitSignal:
@@ -374,12 +380,8 @@ func (p *ProtocolState) Start(command int, rtv *int) error {
 				return
 			default:
 			}
-			p.peerMonitor()
-			if p.localMonitor(p.l) == false {
-				fmt.Printf("%s: Terminating due to violation of network condition.\n", p.MyId.Address)
-				p.ExitSignal <- true
-				return
-			}
+			//p.peerMonitor()
+			p.localMonitor(p.l)
 		}
 	}()
 	return nil
@@ -396,8 +398,6 @@ func (p *ProtocolState) RetrieveState(ph int, state *ProtocolState) error {
 	return nil
 }
 
-
-
 func (p *ProtocolState) addToInitView(id message.Identity) {
 	if _, ok := p.idToAddrMap[id.GetUUID()]; !ok {
 		p.initView = append(p.initView, id)
@@ -407,16 +407,16 @@ func (p *ProtocolState) addToInitView(id message.Identity) {
 	}
 }
 
-func (p *ProtocolState) removeFromInitView(addr string){
+func (p *ProtocolState) removeFromInitView(addr string) {
 	var pos = 0
 	found := false
-	for pos,_ = range p.initView{
-		if p.initView[pos].Address == addr{
+	for pos, _ = range p.initView {
+		if p.initView[pos].Address == addr {
 			found = true
 			break
 		}
 	}
-	if found{
+	if found {
 		delete(p.idToAddrMap, p.initView[pos].GetUUID())
 		p.initView = append(p.initView[:pos], p.initView[pos+1:]...)
 	}
@@ -429,7 +429,7 @@ func (p *ProtocolState) sendMsgToPeerAsync(m message.Message, addr string) {
 		if err != nil {
 			p.lock.Lock()
 			p.FailToSend++
-			if err.Error() == "Not in initview.\n"{
+			if err.Error() == "Not in initview.\n" {
 				p.removeFromInitView(addr)
 			}
 			p.lock.Unlock()
@@ -446,10 +446,8 @@ func (p *ProtocolState) sendMsgToPeerAsync(m message.Message, addr string) {
 	}()
 }
 
-
-
 func (p *ProtocolState) sendMsgToPeerWithTrial(m message.Message, addr string, trial int) error {
-	if trial <= 0{
+	if trial <= 0 {
 		return fmt.Errorf("Fail to send to %s.\n", addr)
 	}
 	err := RpcCall(addr, "ProtocolState.SendInMsg", m, nil, p.roundDuration)
@@ -458,7 +456,7 @@ func (p *ProtocolState) sendMsgToPeerWithTrial(m message.Message, addr string, t
 		p.lock.Lock()
 		p.FailToSend++
 		p.lock.Unlock()
-		return p.sendMsgToPeerWithTrial(m, addr, trial - 1)
+		return p.sendMsgToPeerWithTrial(m, addr, trial-1)
 	} else {
 		p.lock.Lock()
 		p.MsgCount++
@@ -524,8 +522,8 @@ func (p *ProtocolState) viewReconciliation() {
 		}
 
 		p.lock.Lock()
-			<-p.ticker
-			p.Round++
+		<-p.ticker
+		p.Round++
 		p.lock.Unlock()
 
 		p.lock.Lock()

@@ -76,6 +76,12 @@ func ListenRPC(portAddr string, worker interface{}, exitSignal chan bool) string
 	}
 	go func() {
 		defer l.Close()
+		defer func() {
+			r := recover()
+			if r != nil{
+				fmt.Printf("%s\n", r)
+			}
+		}()
 		for {
 			select{
 			case <-exitSignal:
@@ -83,6 +89,7 @@ func ListenRPC(portAddr string, worker interface{}, exitSignal chan bool) string
 				return
 			default:
 			}
+
 			conn, err := l.Accept()
 			if err != nil {
 				fmt.Printf("Error: accept rpc connection %s", err.Error())
@@ -152,6 +159,7 @@ func RpcCall(srv string, rpcname string, args interface{}, reply interface{}, ti
 			ret = fmt.Errorf("%s", r)
 		}
 	}()
+
 	conn, err := net.DialTimeout("tcp", srv, timeout)
 	defer conn.Close()
 	if err != nil {

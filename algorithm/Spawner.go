@@ -190,6 +190,11 @@ var SPAWNER_LIST  = []string {"xcna0.comp.nus.edu.sg:9697",
 func (s *SpawnerState) Spawn(count int, rtv *int) error {
 	for i := 0; i < count; i++ {
 		go func() {
+			defer func() {
+				if r := recover(); r != nil {
+
+				}
+			}()
 			_exitSignal := make(chan bool, 5)
 			node := StartNode(s.ControlAddress, _exitSignal)
 			for{
