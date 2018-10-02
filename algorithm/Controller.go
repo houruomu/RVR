@@ -318,13 +318,14 @@ func (c *ControllerState) report() (report string, fin bool, cons bool, round in
 		if c.maliciousMap[peer.GetUUID()] {
 			continue
 		}
+		c.lock.Lock()
 		if count,ok := c.errorCount[peer.Address]; !ok{
-			c.lock.Lock()
 			c.errorCount[peer.Address] = 1
-			c.lock.Unlock()
 		}else if count > MAX_TRY{
 			c.maliciousMap[peer.GetUUID()] = true
 		}
+		c.lock.Unlock()
+
 		statelen++
 		go func(addr string) {
 			newState := ProtocolState{}
