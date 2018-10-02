@@ -109,6 +109,8 @@ func (c *ControllerState) load() {
 			if err != nil {
 				fmt.Printf("Server %s disconnected.\n", server)
 				return
+			}else{
+				fmt.Printf("Server %s connected.\n", server)
 			}
 			localLock.Lock()
 			defer localLock.Unlock()
@@ -313,13 +315,15 @@ func (c *ControllerState) report() (report string, fin bool, cons bool, round in
 	statelen := 0
 	stateChan := make(chan *ProtocolState)
 	for _, peer := range c.PeerList {
-		if count,ok := c.errorCount[peer.Address]; !ok{
-			c.errorCount[peer.Address] = 1
-		}else if count > MAX_TRY{
-			c.maliciousMap[peer.GetUUID()] = true
-		}
 		if c.maliciousMap[peer.GetUUID()] {
 			continue
+		}
+		if count,ok := c.errorCount[peer.Address]; !ok{
+			c.lock.Lock()
+			c.errorCount[peer.Address] = 1
+			c.lock.Unlock()
+		}else if count > MAX_TRY{
+			c.maliciousMap[peer.GetUUID()] = true
 		}
 		statelen++
 		go func(addr string) {
