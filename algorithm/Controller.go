@@ -16,7 +16,7 @@ import (
 // this packet is to monitor and coordinate the nodes
 const MAX_TRY = 10
 var DefaultSetupParams = ProtocolRPCSetupParams{
-	640 * time.Millisecond,
+	500 * time.Millisecond,
 	4,
 	0.01,
 	0.01,
@@ -204,8 +204,8 @@ func (c *ControllerState) KillNodes(ph1 int, ph2 *int) error {
 }
 
 func (c *ControllerState) KillServers(ph1 int, ph2 *int) error {
-	for i, _ := range c.ServerList {
-		RpcCall(c.ServerList[i], "SpawnerState.Exit", 1, nil, time.Second)
+	for _, server := range c.ServerList {
+		RpcCall(server, "SpawnerState.Exit", 1, nil, time.Second)
 	}
 	return nil
 }
@@ -533,10 +533,10 @@ func (c *ControllerState) autoTest(size int, params ProtocolRPCSetupParams, stop
 }
 
 func (c *ControllerState) batchTest() {
-	sizeList := []int{160, 80}
-	durationList := []int32{100, 200, 400}
-	deltaList := []float64{0.005, 0.01, 0.001}
-	fList := []float64{0.03, 0.01, 0.02}
+	sizeList := []int{100, 120, 140, 160, 180, 200}
+	durationList := []int32{200, 400, 600}
+	deltaList := []float64{0.01, 0.005, 0.001}
+	fList := []float64{0.05, 0.1}
 	gList := []float64{0.005, 0.01, 0.0025}
 	offsetList := []int{2, 4, 6, 8}
 
@@ -568,7 +568,7 @@ func (c *ControllerState) batchTest() {
 			for _, offset := range offsetList {
 				c.SetupParams.Offset = offset
 				c.SetupParams.RoundDuration = time.Duration(dur) * time.Millisecond
-				if c.autoTest(160, c.SetupParams, true) {
+				if c.autoTest(80, c.SetupParams, true) {
 					break
 				}
 			}
@@ -577,17 +577,17 @@ func (c *ControllerState) batchTest() {
 		c.SetupParams = DefaultSetupParams
 		for _, delta := range deltaList {
 			c.SetupParams.Delta = delta
-			c.autoTest(160, c.SetupParams, false)
+			c.autoTest(80, c.SetupParams, false)
 		}
 		c.SetupParams = DefaultSetupParams
 		for _, f := range fList {
 			c.SetupParams.F = f
-			c.autoTest(160, c.SetupParams, false)
+			c.autoTest(80, c.SetupParams, false)
 		}
 		c.SetupParams = DefaultSetupParams
 		for _, g := range gList {
 			c.SetupParams.G = g
-			c.autoTest(160, c.SetupParams, false)
+			c.autoTest(80, c.SetupParams, false)
 		}
 	}
 }

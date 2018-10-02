@@ -3,10 +3,12 @@ package algorithm
 import (
 	"RVR/message"
 	"errors"
+	"fmt"
 	"golang.org/x/crypto/sha3"
 	"crypto/rand"
 	"bytes"
 	"math/big"
+	"time"
 )
 
 type PuzzleMerkleTreeNode struct {
@@ -298,6 +300,7 @@ func (state *ElectionState) DoElection() message.Identity {
 	}
 	// line 11-15: return the leader
 	p.lock.Lock()
+	startTime := time.Now()
 	for _, m := range p.inQueue {
 		if _, ok := p.idToAddrMap[m.Sender.GetUUID()]; ok {
 			if m.Proof == nil {
@@ -316,6 +319,8 @@ func (state *ElectionState) DoElection() message.Identity {
 			// message not from initview, ignore
 		}
 	}
+	timeFin := time.Now()
+	fmt.Printf("%d used for leader evaluation\n", timeFin.Sub(startTime))
 	p.inQueue = make([]message.Message, 0)
 	p.lock.Unlock()
 	return leader

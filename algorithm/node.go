@@ -545,6 +545,8 @@ func (p *ProtocolState) viewReconciliation() {
 		leader := DoElection(p, 1)
 		if leader.Public_key == nil{
 			fmt.Printf("Leader Election failed, round %d.\n", p.Round)
+		}else{
+			fmt.Printf("Leader Election succeeded, round %d.\n", p.Round )
 		}
 
 		p.lock.Lock()
